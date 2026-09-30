@@ -1,0 +1,27 @@
+// Punto de entrada de la biblioteca (no es un main: sólo exporta clases e interfaces).
+export { ErrorDeDominio } from './comun/ErrorDeDominio';
+export { EstadoProceso } from './comun/EstadoProceso';
+export * from './interfaces/Datos';
+export type { IImprimible } from './interfaces/IImprimible';
+export type { IEventoEntradaSalida } from './interfaces/IEventoEntradaSalida';
+export type * from './interfaces/IProceso';
+export type * from './interfaces/IProcesos';
+export type * from './interfaces/IMemoria';
+export type * from './interfaces/IPlanificacion';
+export type * from './interfaces/IMetricas';
+export type * from './interfaces/IConfiguracion';
+export type * from './interfaces/ISimulador';
+export { Proceso } from './procesos/Proceso';
+export { EventoEntradaSalida } from './procesos/EventoEntradaSalida';
+export { RegistroProcesos } from './procesos/RegistroProcesos';
+export { ColaBloqueados } from './procesos/ColaBloqueados';
+export { BloqueMemoria } from './memoria/BloqueMemoria';
+export { GestorMemoria } from './memoria/GestorMemoria';
+export { PoliticaAsignacion } from './memoria/politicas/PoliticaAsignacion';
+export { PrimerAjuste } from './memoria/politicas/PrimerAjuste';
+export { MejorAjuste } from './memoria/politicas/MejorAjuste';
+export { PeorAjuste } from './memoria/politicas/PeorAjuste';
+export { PlanificadorRoundRobin } from './planificacion/PlanificadorRoundRobin';
+export { Metricas } from './metricas/Metricas';
+export { ConfiguracionSimulacion } from './simulador/ConfiguracionSimulacion';
+export { Simulador } from './simulador/Simulador';

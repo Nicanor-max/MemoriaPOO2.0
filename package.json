@@ -1,0 +1,21 @@
+{
+  "name": "simulador-procesos-memoria",
+  "version": "1.0.0",
+  "description": "Biblioteca de clases que simula procesos, memoria contigua y planificación Round-Robin (AE2 Paradigmas II - UCP 2026)",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:cobertura": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@vitest/coverage-v8": "^5.0.3",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.3"
+  }
+}
