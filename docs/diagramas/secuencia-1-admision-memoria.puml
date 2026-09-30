@@ -3,46 +3,41 @@ title Secuencia 1 - RF03/RF04: admisión y asignación de memoria (fase 1 del ti
 autonumber
 actor Test
 participant ":Simulador" as S
-participant ":RegistroProcesos" as R
-participant "proceso:Proceso" as P
-participant ":GestorMemoria" as M
+participant "p:Proceso" as P
+participant "estado:Nuevo" as E
+participant ":AdministradorMemoria" as M
 participant "politica:PrimerAjuste" as POL
 participant "bloque:BloqueMemoria" as B
 participant ":PlanificadorRoundRobin" as PL
 
-Test -> S : registrarProceso(1, 100, 3)
-S -> P ** : new Proceso(1, 100, 3)
-S -> R : registrar(proceso)
-R --> S
-S --> Test : DatosProceso (estado NUEVO)
+Test -> S : registrarProceso("P1", 200, 4)
+S -> P ** : new Proceso("P1", 200, 4)
+P -> E ** : new Nuevo()
+S --> Test : DatosProceso (NUEVO)
 
 Test -> S : avanzarTick()
 S -> S : admitirProcesos()
-S -> R : pendientesDeAdmision()
-R --> S : [proceso]
-loop por cada pendiente, en orden de registro
-  S -> M : asignar(pid, memoriaRequerida)
-  M -> POL : elegirBloque(copiaBloques, tamanio)
-  POL -> POL : seleccionar(candidatos)
-  POL --> M : bloque | null
-  alt hay un hueco suficiente
-    opt sobra espacio
-      M -> B : recortarA(tamanio)
-      M -> M : new BloqueMemoria(sobrante)
-    end
-    M -> B : asignarA(pid)
-    M -> M : setBloques(bloques) (verifica invariantes)
-    M --> S : true
-    S -> P : admitir()
-    note right of P : NUEVO -> LISTO
-    S -> PL : encolar(proceso)
-  else no hay hueco contiguo
-    M --> S : false (no modifica bloques)
-    S -> P : esperarMemoria()
-    note right of P : -> ESPERANDO_MEMORIA
-  end
+S -> P : estaPendienteDeMemoria()
+P -> E : estaPendienteDeMemoria()
+E --> P : true
+S -> M : asignar("P1", 200)
+M -> POL : elegir(bloques, 200)
+POL -> POL : ordenar(candidatos) <<override>>
+POL --> M : [bloque] o [ ]
+alt la política devolvió [bloque]
+  M -> M : ocupar(bloque, "P1", 200)
+  M -> B : recortarA(200)
+  M -> B : asignarA("P1")
+  M -> M : setBloques(...) verifica invariantes
+  M --> S : true
+  S -> P : admitir()
+  P -> E : admitir()
+  E --> P : new Listo()
+  S -> PL : encolar(p)
+else la política devolvió [ ]
+  M --> S : false (no modifica nada)
+  S -> P : esperarMemoria()
+  P -> E : esperarMemoria()
+  E --> P : new EsperandoMemoria()
 end
-S -> S : actualizarBloqueados()
-S -> S : ejecutarCpu()
-S -> S : actualizarRelojYMetricas()
 @enduml

@@ -1,13 +1,13 @@
-import { exigirEnteroNoNegativo, exigirPorcentaje } from '../comun/validaciones';
+import { exigir, exigirEnteroNoNegativo } from '../comun/Validador';
 import { DatosMetricas } from '../interfaces/Datos';
 import { IImprimible } from '../interfaces/IImprimible';
 import { IConsultaMemoria } from '../interfaces/IMemoria';
 import { IConsultaMetricas, IRegistroMetricas } from '../interfaces/IMetricas';
+import { ResultadoTick } from '../interfaces/IPlanificacion';
 
 /**
- * Métricas del simulador (RF09). Se recalculan al final de cada tick.
- * Convención de cambios de contexto: sólo expulsión por quantum con otros listos
- * y bloqueo por E/S (no cuenta despacho inicial, finalización ni renovación de quantum).
+ * Métricas, recalculadas al final de cada tick.
+ * Math.max(x, 1) evita dividir por 0 sin usar if: en el tick 0 y con memoria llena da 0 %.
  */
 export class Metricas implements IRegistroMetricas, IConsultaMetricas, IImprimible<DatosMetricas> {
   private _ticksConCpuOcupada!: number;
@@ -28,7 +28,7 @@ export class Metricas implements IRegistroMetricas, IConsultaMetricas, IImprimib
     this.setFragmentacionExterna(0);
   }
 
-  // ---------- Doble encapsulamiento ----------
+  // ======================= Getters y setters =======================
   public getTicksConCpuOcupada(): number {
     return this._ticksConCpuOcupada;
   }
@@ -52,7 +52,7 @@ export class Metricas implements IRegistroMetricas, IConsultaMetricas, IImprimib
   }
 
   private setOcupacionMemoria(valor: number): void {
-    exigirPorcentaje(valor, 'La ocupación de memoria');
+    this.exigirPorcentaje(valor);
     this._ocupacionMemoria = valor;
   }
 
@@ -61,7 +61,7 @@ export class Metricas implements IRegistroMetricas, IConsultaMetricas, IImprimib
   }
 
   private setUtilizacionCpu(valor: number): void {
-    exigirPorcentaje(valor, 'La utilización de CPU');
+    this.exigirPorcentaje(valor);
     this._utilizacionCpu = valor;
   }
 
@@ -88,19 +88,15 @@ export class Metricas implements IRegistroMetricas, IConsultaMetricas, IImprimib
   }
 
   private setFragmentacionExterna(valor: number): void {
-    exigirPorcentaje(valor, 'La fragmentación externa');
+    this.exigirPorcentaje(valor);
     this._fragmentacionExterna = valor;
   }
 
-  // ---------- IRegistroMetricas ----------
-  public registrarUsoDeCpu(ocupada: boolean): void {
-    if (ocupada) {
-      this.setTicksConCpuOcupada(this.getTicksConCpuOcupada() + 1);
-    }
-  }
-
-  public registrarCambioDeContexto(): void {
-    this.setCambiosDeContexto(this.getCambiosDeContexto() + 1);
+  // ======================= Registro =======================
+  /** Number(true) = 1 y Number(false) = 0: suma un tick ocupado sólo si hubo proceso. */
+  public registrarTick(resultado: ResultadoTick): void {
+    this.setTicksConCpuOcupada(this.getTicksConCpuOcupada() + Number(resultado.pidEjecutado !== null));
+    this.setCambiosDeContexto(this.getCambiosDeContexto() + resultado.cambiosDeContexto);
   }
 
   public recalcular(memoria: IConsultaMemoria, ticksTranscurridos: number): void {
@@ -108,12 +104,11 @@ export class Metricas implements IRegistroMetricas, IConsultaMetricas, IImprimib
     const libre = memoria.getMemoriaLibreTotal();
     const mayor = memoria.getMayorBloqueLibre();
     this.setOcupacionMemoria((100 * memoria.getMemoriaOcupada()) / memoria.getMemoriaTotal());
-    this.setUtilizacionCpu(
-      ticksTranscurridos === 0 ? 0 : (100 * this.getTicksConCpuOcupada()) / ticksTranscurridos,
-    );
+    this.setUtilizacionCpu((100 * this.getTicksConCpuOcupada()) / Math.max(ticksTranscurridos, 1));
     this.setMemoriaLibreTotal(libre);
     this.setMayorBloqueLibre(mayor);
-    this.setFragmentacionExterna(libre === 0 ? 0 : 100 * (1 - mayor / libre));
+    // 100 × (1 − mayor/libre) = 100 × (libre − mayor) / libre ; con libre = 0 da 0 %.
+    this.setFragmentacionExterna((100 * (libre - mayor)) / Math.max(libre, 1));
   }
 
   public estado(): DatosMetricas {
@@ -126,5 +121,9 @@ export class Metricas implements IRegistroMetricas, IConsultaMetricas, IImprimib
       fragmentacionExterna: this.getFragmentacionExterna(),
       ticksConCpuOcupada: this.getTicksConCpuOcupada(),
     });
+  }
+
+  private exigirPorcentaje(valor: number): void {
+    exigir(valor >= 0 && valor <= 100, `Un porcentaje debe estar entre 0 y 100 (recibido: ${valor}).`);
   }
 }

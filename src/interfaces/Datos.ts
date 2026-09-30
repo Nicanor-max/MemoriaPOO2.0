@@ -1,34 +1,27 @@
-import { EstadoProceso } from '../comun/EstadoProceso';
+/* Copias congeladas del estado: es lo único que sale hacia afuera. */
 
-/*
- * "Fotos" (copias congeladas) del estado de cada objeto.
- * Son lo único que sale hacia afuera: quien las recibe no puede modificar
- * el estado real del simulador.
- */
-
-export interface DatosEventoEntradaSalida {
+export interface DatosEntradaSalida {
   readonly ticksDeCpu: number;
   readonly duracion: number;
 }
 
 export interface DatosProceso {
-  readonly pid: number;
+  readonly pid: string;
   readonly memoriaRequerida: number;
   readonly cpuTotal: number;
   readonly cpuRestante: number;
   readonly cpuConsumida: number;
-  readonly estado: EstadoProceso;
+  readonly estado: string;
   readonly quantumConsumido: number;
   readonly bloqueoRestante: number;
-  readonly entradaSalida: DatosEventoEntradaSalida | null;
-  readonly entradaSalidaDisparada: boolean;
+  readonly entradaSalida: DatosEntradaSalida | null;
 }
 
 export interface DatosBloque {
   readonly inicio: number;
   readonly tamanio: number;
   readonly fin: number;
-  readonly pid: number | null;
+  readonly pid: string | null;
   readonly libre: boolean;
 }
 
@@ -41,17 +34,12 @@ export interface DatosMemoria {
   readonly bloques: readonly DatosBloque[];
 }
 
-export interface DatosConfiguracion {
-  readonly memoriaTotal: number;
-  readonly quantum: number;
-  readonly politica: string;
-}
-
 export interface DatosPlanificador {
   readonly quantum: number;
   readonly procesoEnCpu: DatosProceso | null;
   readonly colaListos: readonly DatosProceso[];
-  readonly historialEjecucion: readonly (number | null)[];
+  readonly bloqueados: readonly DatosProceso[];
+  readonly historialEjecucion: readonly (string | null)[];
 }
 
 export interface DatosMetricas {
@@ -66,7 +54,7 @@ export interface DatosMetricas {
 
 export interface DatosSimulador {
   readonly tick: number;
-  readonly configuracion: DatosConfiguracion;
+  readonly quantum: number;
   readonly procesos: readonly DatosProceso[];
   readonly procesoEnCpu: DatosProceso | null;
   readonly colaListos: readonly DatosProceso[];
@@ -75,5 +63,5 @@ export interface DatosSimulador {
   readonly procesosTerminados: readonly DatosProceso[];
   readonly memoria: DatosMemoria;
   readonly metricas: DatosMetricas;
-  readonly historialEjecucion: readonly (number | null)[];
+  readonly historialEjecucion: readonly (string | null)[];
 }

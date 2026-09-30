@@ -1,16 +1,10 @@
-import { exigirEnteroPositivo } from '../comun/validaciones';
-import { DatosEventoEntradaSalida } from '../interfaces/Datos';
-import { IEventoEntradaSalida } from '../interfaces/IEventoEntradaSalida';
+import { exigirEnteroPositivo } from '../comun/Validador';
+import { DatosEntradaSalida } from '../interfaces/Datos';
+import { IEntradaSalida } from '../interfaces/IEntradaSalida';
 import { IImprimible } from '../interfaces/IImprimible';
 
-/**
- * Evento de E/S determinista (RF08): "después de N ticks de CPU consumidos,
- * el proceso se bloquea durante D ticks". Es inmutable: sus setters son privados
- * y sólo se usan en el constructor.
- */
-export class EventoEntradaSalida
-  implements IEventoEntradaSalida, IImprimible<DatosEventoEntradaSalida>
-{
+/** Evento de E/S determinista: después de "ticksDeCpu" de CPU, se bloquea "duracion" ticks. */
+export class EntradaSalida implements IEntradaSalida, IImprimible<DatosEntradaSalida> {
   private _ticksDeCpu!: number;
   private _duracion!: number;
 
@@ -19,7 +13,6 @@ export class EventoEntradaSalida
     this.setDuracion(duracion);
   }
 
-  // ---------- Doble encapsulamiento: getters públicos, setters privados que validan ----------
   public getTicksDeCpu(): number {
     return this._ticksDeCpu;
   }
@@ -38,12 +31,15 @@ export class EventoEntradaSalida
     this._duracion = valor;
   }
 
-  // ---------- Comportamiento ----------
+  public estaProgramada(): boolean {
+    return true;
+  }
+
   public correspondeDispararEn(cpuConsumida: number): boolean {
     return cpuConsumida === this.getTicksDeCpu();
   }
 
-  public estado(): DatosEventoEntradaSalida {
+  public estado(): DatosEntradaSalida {
     return Object.freeze({ ticksDeCpu: this.getTicksDeCpu(), duracion: this.getDuracion() });
   }
 }

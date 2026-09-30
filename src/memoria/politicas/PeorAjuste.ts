@@ -1,15 +1,13 @@
 import { IBloqueConsultable } from '../../interfaces/IMemoria';
 import { PoliticaAsignacion } from './PoliticaAsignacion';
 
-/** Worst-Fit: el hueco suficiente más grande. Empate: menor dirección (se usa ">" estricto). */
+/** Worst-Fit: el hueco más grande. */
 export class PeorAjuste extends PoliticaAsignacion {
   public constructor() {
-    super('Peor ajuste (Worst-Fit)');
+    super('WORST_FIT');
   }
 
-  protected override seleccionar(candidatos: ReadonlyArray<IBloqueConsultable>): IBloqueConsultable {
-    return candidatos.reduce((peor, actual) =>
-      actual.getTamanio() > peor.getTamanio() ? actual : peor,
-    );
+  protected override ordenar(candidatos: IBloqueConsultable[]): IBloqueConsultable[] {
+    return [...candidatos].sort((a, b) => b.getTamanio() - a.getTamanio());
   }
 }

@@ -1,22 +1,20 @@
-import { ErrorDeDominio } from '../comun/ErrorDeDominio';
-import { exigirEnteroNoNegativo, exigirEnteroPositivo } from '../comun/validaciones';
+import { exigir, exigirEnteroNoNegativo, exigirEnteroPositivo } from '../comun/Validador';
 import { DatosBloque } from '../interfaces/Datos';
 import { IImprimible } from '../interfaces/IImprimible';
 import { IBloqueConsultable, IBloqueModificable } from '../interfaces/IMemoria';
 
-/** Bloque contiguo de memoria: inicio, tamaño y proceso asignado o libre (RF04). */
+/** Partición contigua de la RAM: inicio, tamaño y proceso que la ocupa (o libre). */
 export class BloqueMemoria implements IBloqueConsultable, IBloqueModificable, IImprimible<DatosBloque> {
   private _inicio!: number;
   private _tamanio!: number;
-  private _pidAsignado!: number | null;
+  private _pidAsignado!: string | null;
 
-  public constructor(inicio: number, tamanio: number, pidAsignado: number | null = null) {
+  public constructor(inicio: number, tamanio: number) {
     this.setInicio(inicio);
     this.setTamanio(tamanio);
-    this.setPidAsignado(pidAsignado);
+    this.setPidAsignado(null);
   }
 
-  // ---------- Doble encapsulamiento ----------
   public getInicio(): number {
     return this._inicio;
   }
@@ -30,24 +28,20 @@ export class BloqueMemoria implements IBloqueConsultable, IBloqueModificable, II
     return this._tamanio;
   }
 
-  /** Un bloque nunca puede tener tamaño 0 (RF04: el ajuste exacto no genera bloques vacíos). */
+  /** Nunca hay bloques de tamaño 0. */
   private setTamanio(valor: number): void {
     exigirEnteroPositivo(valor, 'El tamaño del bloque');
     this._tamanio = valor;
   }
 
-  public getPidAsignado(): number | null {
+  public getPidAsignado(): string | null {
     return this._pidAsignado;
   }
 
-  private setPidAsignado(valor: number | null): void {
-    if (valor !== null) {
-      exigirEnteroPositivo(valor, 'El PID asignado');
-    }
+  private setPidAsignado(valor: string | null): void {
     this._pidAsignado = valor;
   }
 
-  // ---------- IBloqueConsultable ----------
   public getFin(): number {
     return this.getInicio() + this.getTamanio() - 1;
   }
@@ -56,38 +50,19 @@ export class BloqueMemoria implements IBloqueConsultable, IBloqueModificable, II
     return this.getPidAsignado() === null;
   }
 
-  // ---------- IBloqueModificable ----------
-  public asignarA(pid: number): void {
-    if (!this.estaLibre()) {
-      throw new ErrorDeDominio(`El bloque en ${this.getInicio()} ya está ocupado.`);
-    }
+  public asignarA(pid: string): void {
+    exigir(this.estaLibre(), `El bloque en ${this.getInicio()} ya está ocupado.`);
     this.setPidAsignado(pid);
   }
 
   public liberar(): void {
-    if (this.estaLibre()) {
-      throw new ErrorDeDominio(`El bloque en ${this.getInicio()} ya está libre.`);
-    }
+    exigir(!this.estaLibre(), `El bloque en ${this.getInicio()} ya está libre.`);
     this.setPidAsignado(null);
   }
 
-  /** Achica el bloque (el sobrante lo crea el GestorMemoria como un bloque nuevo). */
   public recortarA(tamanio: number): void {
-    if (tamanio >= this.getTamanio()) {
-      throw new ErrorDeDominio('Sólo se recorta un bloque cuando sobra espacio.');
-    }
+    exigir(tamanio <= this.getTamanio(), 'Un bloque no puede agrandarse al recortarlo.');
     this.setTamanio(tamanio);
-  }
-
-  /** Coalescencia: absorbe al vecino libre inmediatamente a la derecha (RF05). */
-  public absorber(vecinoDerecho: IBloqueConsultable): void {
-    if (!this.estaLibre() || !vecinoDerecho.estaLibre()) {
-      throw new ErrorDeDominio('Sólo se fusionan bloques libres.');
-    }
-    if (vecinoDerecho.getInicio() !== this.getFin() + 1) {
-      throw new ErrorDeDominio('Sólo se fusionan bloques adyacentes.');
-    }
-    this.setTamanio(this.getTamanio() + vecinoDerecho.getTamanio());
   }
 
   public estado(): DatosBloque {

@@ -1,54 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ConfiguracionSimulacion,
-  ErrorDeDominio,
-  MejorAjuste,
-  Simulador,
-} from '../src/index';
+import { ErrorDeDominio, MejorAjuste, Simulador } from '../src/index';
 
 describe('RF01 - Configurar e iniciar la simulación', () => {
   it('usa la configuración de referencia: 1024 KB, quantum 2 y First-Fit', () => {
-    const configuracion = new ConfiguracionSimulacion();
-    expect(configuracion.estado()).toEqual({
-      memoriaTotal: 1024,
-      quantum: 2,
-      politica: 'Primer ajuste (First-Fit)',
-    });
+    const estado = new Simulador().estado();
+    expect(estado.memoria.memoriaTotal).toBe(1024);
+    expect(estado.quantum).toBe(2);
+    expect(estado.memoria.politica).toBe('FIRST_FIT');
   });
 
   it('permite configurar memoria, quantum y política', () => {
-    const configuracion = new ConfiguracionSimulacion(512, 3, new MejorAjuste());
-    expect(configuracion.getMemoriaTotal()).toBe(512);
-    expect(configuracion.getQuantum()).toBe(3);
-    expect(configuracion.getPolitica().getNombre()).toBe('Mejor ajuste (Best-Fit)');
-  });
-
-  it('acepta el límite inferior: memoria 1 y quantum 1', () => {
-    const simulador = new Simulador(new ConfiguracionSimulacion(1, 1));
-    expect(simulador.consultarMapaMemoria()).toEqual([
-      { inicio: 0, tamanio: 1, fin: 0, pid: null, libre: true },
-    ]);
-  });
-
-  it.each([0, -1, 1.5, Number.NaN])('rechaza memoria total inválida (%s)', (memoria) => {
-    expect(() => new ConfiguracionSimulacion(memoria, 2)).toThrow(ErrorDeDominio);
-  });
-
-  it.each([0, -2, 2.5])('rechaza quantum inválido (%s)', (quantum) => {
-    expect(() => new ConfiguracionSimulacion(1024, quantum)).toThrow(ErrorDeDominio);
-  });
-
-  it('rechaza una política nula', () => {
-    expect(() => new ConfiguracionSimulacion(1024, 2, null as never)).toThrow(ErrorDeDominio);
-  });
-
-  it('rechaza crear un simulador sin configuración (no quedan estados parciales)', () => {
-    expect(() => new Simulador(null as never)).toThrow(ErrorDeDominio);
+    const estado = new Simulador(512, 3, new MejorAjuste()).estado();
+    expect(estado.memoria.memoriaTotal).toBe(512);
+    expect(estado.quantum).toBe(3);
+    expect(estado.memoria.politica).toBe('BEST_FIT');
   });
 
   it('inicia en tick 0, un único bloque libre, colas vacías y contadores en cero', () => {
-    const simulador = new Simulador(new ConfiguracionSimulacion());
-
+    const simulador = new Simulador();
     expect(simulador.getTick()).toBe(0);
     expect(simulador.consultarMapaMemoria()).toEqual([
       { inicio: 0, tamanio: 1024, fin: 1023, pid: null, libre: true },
@@ -68,5 +37,21 @@ describe('RF01 - Configurar e iniciar la simulación', () => {
       fragmentacionExterna: 0,
       ticksConCpuOcupada: 0,
     });
+  });
+
+  it('acepta el límite inferior: memoria 1 y quantum 1', () => {
+    expect(new Simulador(1, 1).consultarMapaMemoria()).toHaveLength(1);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])('rechaza memoria total inválida (%s)', (memoria) => {
+    expect(() => new Simulador(memoria, 2)).toThrow(ErrorDeDominio);
+  });
+
+  it.each([0, -2, 2.5])('rechaza quantum inválido (%s)', (quantum) => {
+    expect(() => new Simulador(1024, quantum)).toThrow(ErrorDeDominio);
+  });
+
+  it('rechaza una política nula', () => {
+    expect(() => new Simulador(1024, 2, null as never)).toThrow(ErrorDeDominio);
   });
 });

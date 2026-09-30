@@ -1,45 +1,43 @@
 import { DatosBloque } from './Datos';
 
-/** Funcionalidad: leer un bloque de memoria. */
+/** Funcionalidad: leer un bloque. */
 export interface IBloqueConsultable {
   getInicio(): number;
   getTamanio(): number;
   getFin(): number;
-  getPidAsignado(): number | null;
+  getPidAsignado(): string | null;
   estaLibre(): boolean;
 }
 
-/** Funcionalidad: modificar un bloque (sólo la usa el GestorMemoria). */
+/** Funcionalidad: modificar un bloque (sólo lo usa el AdministradorMemoria). */
 export interface IBloqueModificable {
-  asignarA(pid: number): void;
+  asignarA(pid: string): void;
   liberar(): void;
   recortarA(tamanio: number): void;
-  absorber(vecinoDerecho: IBloqueConsultable): void;
 }
 
-/** Funcionalidad: elegir un hueco (First-Fit, Best-Fit, Worst-Fit) (RF04). */
+/** Funcionalidad: elegir el hueco (First-Fit, Best-Fit, Worst-Fit). Devuelve 0 o 1 bloque. */
 export interface IPoliticaAsignacion {
   getNombre(): string;
-  elegirBloque(bloques: ReadonlyArray<IBloqueConsultable>, tamanio: number): IBloqueConsultable | null;
+  elegir(bloques: ReadonlyArray<IBloqueConsultable>, tamanio: number): IBloqueConsultable[];
 }
 
-/** Funcionalidad: asignar memoria contigua (RF04). */
+/** Funcionalidad: asignar memoria contigua. */
 export interface IAsignadorMemoria {
-  asignar(pid: number, tamanio: number): boolean;
+  asignar(pid: string, tamanio: number): boolean;
 }
 
-/** Funcionalidad: liberar memoria con coalescencia (RF05). */
+/** Funcionalidad: liberar memoria con coalescencia. */
 export interface ILiberadorMemoria {
-  liberar(pid: number): void;
+  liberar(pid: string): void;
 }
 
-/** Funcionalidad: consultar la memoria (RF09 / RF10). */
+/** Funcionalidad: consultar la memoria. */
 export interface IConsultaMemoria {
   getMemoriaTotal(): number;
   getMemoriaOcupada(): number;
   getMemoriaLibreTotal(): number;
   getMayorBloqueLibre(): number;
-  getNombrePolitica(): string;
-  tieneMemoriaAsignada(pid: number): boolean;
+  tieneMemoriaAsignada(pid: string): boolean;
   consultarMapa(): readonly DatosBloque[];
 }

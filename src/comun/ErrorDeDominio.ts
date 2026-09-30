@@ -1,9 +1,6 @@
 /**
- * Error que se lanza cuando se intenta violar una regla del dominio
- * (configuración inválida, PID repetido, transición de estado prohibida, etc.).
- *
- * Herencia justificada: un ErrorDeDominio ES UN Error de JavaScript y puede
- * sustituirlo en cualquier lugar (try/catch, toThrow en los tests).
+ * Error que se lanza cuando se intenta romper una regla del dominio.
+ * Herencia "es un": un ErrorDeDominio ES UN Error y lo sustituye en cualquier try/catch.
  */
 export class ErrorDeDominio extends Error {
   public constructor(mensaje: string) {

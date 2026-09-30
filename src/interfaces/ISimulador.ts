@@ -1,23 +1,17 @@
-import {
-  DatosBloque,
-  DatosConfiguracion,
-  DatosMetricas,
-  DatosProceso,
-} from './Datos';
+import { DatosBloque, DatosMetricas, DatosProceso } from './Datos';
 
-/** Funcionalidad: operar la simulación (RF02, RF06, RF08). */
+/** Funcionalidad: operar la simulación. */
 export interface ISimulador {
-  registrarProceso(pid: number, memoriaRequerida: number, cpuTotal: number): DatosProceso;
-  programarEntradaSalida(pid: number, ticksDeCpu: number, duracion: number): void;
+  registrarProceso(pid: string, memoriaRequerida: number, cpuTotal: number): DatosProceso;
+  programarEntradaSalida(pid: string, ticksDeCpu: number, duracion: number): void;
   avanzarTick(): void;
   avanzarTicks(cantidad: number): void;
 }
 
-/** Funcionalidad: consultar el estado del sistema (RF10). */
+/** Funcionalidad: consultar el estado del sistema. */
 export interface IConsultaSimulador {
   getTick(): number;
-  consultarConfiguracion(): DatosConfiguracion;
-  consultarProceso(pid: number): DatosProceso;
+  consultarProceso(pid: string): DatosProceso;
   consultarProcesos(): readonly DatosProceso[];
   consultarProcesoEnCpu(): DatosProceso | null;
   consultarColaListos(): readonly DatosProceso[];
@@ -26,5 +20,5 @@ export interface IConsultaSimulador {
   consultarProcesosTerminados(): readonly DatosProceso[];
   consultarMapaMemoria(): readonly DatosBloque[];
   consultarMetricas(): DatosMetricas;
-  consultarHistorialEjecucion(): readonly (number | null)[];
+  consultarHistorialEjecucion(): readonly (string | null)[];
 }

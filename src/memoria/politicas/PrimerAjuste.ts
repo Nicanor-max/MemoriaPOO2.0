@@ -1,13 +1,13 @@
 import { IBloqueConsultable } from '../../interfaces/IMemoria';
 import { PoliticaAsignacion } from './PoliticaAsignacion';
 
-/** First-Fit: el primer hueco suficiente por dirección. */
+/** First-Fit: el primer hueco que alcanza (ya vienen ordenados por dirección). */
 export class PrimerAjuste extends PoliticaAsignacion {
   public constructor() {
-    super('Primer ajuste (First-Fit)');
+    super('FIRST_FIT');
   }
 
-  protected override seleccionar(candidatos: ReadonlyArray<IBloqueConsultable>): IBloqueConsultable {
-    return candidatos[0];
+  protected override ordenar(candidatos: IBloqueConsultable[]): IBloqueConsultable[] {
+    return candidatos;
   }
 }

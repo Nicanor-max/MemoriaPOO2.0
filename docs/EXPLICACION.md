@@ -1,185 +1,129 @@
-# Guía de diseño: cómo está hecho y cómo defenderlo
+# Guía de diseño para la defensa
 
-Esta guía explica cada decisión de diseño para que puedas contarla con tus palabras en la defensa, que vale 70 de los 100 puntos.
-**No copies código de clases en el informe.** En el informe van el diagrama y la explicación.
+Acá está explicado **por qué** está hecho así cada parte, para que lo puedas contar con tus palabras.
+En el informe no pegues código de las clases: poné el diagrama y la explicación.
 
----
+## 1. Doble encapsulamiento (en TODAS las clases)
 
-## 1. Convenciones del código
-
-| Regla | Ejemplo |
-|-------|---------|
-| Todo en español | `Proceso`, `GestorMemoria`, `avanzarTick()`, `cpuRestante` |
-| Atributo interno: privado y con guion bajo | `private _quantumConsumido: number` |
-| Getter y setter por cada atributo | `getQuantumConsumido()`, `setQuantumConsumido(valor)` |
-| La clase **nunca** toca `_x` directamente, salvo dentro de su getter y su setter | `this.setQuantumConsumido(this.getQuantumConsumido() + 1)` |
-| Interfaces con prefijo `I` | `IProcesoEjecutable` |
-
----
-
-## 2. Doble encapsulamiento (10 puntos de la rúbrica)
-
-Son **dos capas** de protección:
-
-1. **Capa 1, el atributo:** es `private` y lleva `_`. Desde afuera de la clase no se puede ver ni cambiar.
-2. **Capa 2, el acceso:** incluso **dentro** de la clase, el atributo se lee con `getX()` y se escribe con `setX()`.
-   El setter es el **único** lugar donde cambia el valor, así que ahí va la validación de la regla del dominio.
+1. El atributo es **privado** y empieza con **`_`**: `private _cpuRestante`.
+2. **Nadie lo toca directamente, ni la propia clase.** Se lee con `getCpuRestante()` y se escribe con `setCpuRestante()`.
+   El setter es **privado** y **valida** la regla del dominio.
 
 ```ts
-private _cpuRestante!: number;
-
-public getCpuRestante(): number { return this._cpuRestante; }       // público: se puede consultar
-
-private setCpuRestante(valor: number): void {                       // privado: nadie de afuera lo cambia
-  exigirEnteroNoNegativo(valor, 'La CPU restante');                 // regla del dominio
-  this._cpuRestante = valor;
-}
-
-public ejecutarUnaUnidad(): void {
-  this.setCpuRestante(this.getCpuRestante() - 1);                   // nunca this._cpuRestante--
-  this.setQuantumConsumido(this.getQuantumConsumido() + 1);
-}
+this.setQuantumConsumido(this.getQuantumConsumido() + 1);   // nunca this._quantumConsumido++
 ```
 
-**Qué visibilidad lleva cada método:**
-- Getter de un **dato primitivo** (número, texto): **público**, porque devuelve una copia del valor.
-- Getter de un **objeto o colección** (`getBloques()`, `getColaListos()`): **privado**. Si fuera público, alguien podría hacer `getBloques().push(...)` y romper la memoria.
-  Para mirar esos datos desde afuera están los métodos `consultarX()` y `estado()`, que devuelven **copias congeladas** (`Object.freeze`).
-- Setter: **siempre privado**. El estado sólo cambia con operaciones del dominio (`despachar()`, `bloquear()`, `asignar()`...) que respetan las reglas.
+- Getter de un número o texto: **público**.
+- Getter de un objeto o de una lista (`getBloques()`, `getColaListos()`, `getEstado()`): **privado**. Para mirar desde afuera están `consultarX()` y `estado()`, que devuelven **copias congeladas**.
+- El `!` en `private _pid!: string` le avisa a TypeScript que el valor se asigna en el constructor a través del setter.
 
-**¿Por qué el `!` en `private _pid!: number`?** TypeScript no se da cuenta de que el constructor le asigna valor a través del setter. El `!` le dice: "tranquilo, el constructor lo inicializa".
+## 2. Cómo se evitan los `if`
 
-**Pruebas de que funciona:** `tests/rf10-estado-sistema.test.ts` intenta modificar lo que devuelven las consultas y el test espera un `TypeError`.
+| En el Python había... | Acá se hace con... |
+|---|---|
+| `if p.estado == "LISTO"` y `p.estado = "..."` | **Patrón Estado.** `EstadoProceso` es una clase abstracta en la que toda transición es inválida por defecto. Cada estado (`Nuevo`, `Listo`, `Ejecutando`...) hace **`override`** sólo de las transiciones que permite y devuelve el estado siguiente. |
+| `if algoritmo == "FIRST_FIT" ... elif ...` | **Polimorfismo.** Se le pasa una `PrimerAjuste`, `MejorAjuste` o `PeorAjuste` y el administrador llama a `politica.elegir()` sin preguntar cuál es. |
+| `if p.tiempo_cpu_restante == 0 ... elif quantum ...` | **Lista de reglas polimórficas** (`IReglaCpu`), ordenadas por prioridad: `ReglaFinalizacion`, `ReglaEntradaSalida`, `ReglaQuantumAgotado`, `ReglaContinuar`. Se aplica la **primera** que responde `aplica() == true` (con `find`). |
+| `if self.cpu_proceso is None` | **La CPU es una lista de 0 o 1 procesos.** Los lugares libres son `1 - cpu.length`, y `slice(0, lugaresLibres)` saca de la cola 1 proceso si la CPU está libre y 0 si está ocupada. |
+| `if proceso tiene E/S` (`None`) | **Objeto nulo.** `SinEntradaSalida` cumple el mismo contrato que `EntradaSalida`, pero nunca se dispara. |
+| `if bloque is None` | La política devuelve **una lista de 0 o 1 bloques** y se usa `forEach`. |
+| `if memoria_libre_total > 0` | `Math.max(libre, 1)`: si no hay memoria libre, la cuenta da 0 % sin dividir por 0. |
+| Validaciones (`if valor <= 0: raise`) | `exigir(condicion, mensaje)`: una **tabla de despacho** `{ true: nada, false: lanzar error }` que se indexa con la condición. |
+| El `if` al agotar el quantum sin otros listos | `quantumConsumido % quantum`: si lo agotó vuelve a 0, y si no, queda igual. |
 
----
+## 3. Herencia (sólo cuando hay "es un") y `override`
 
-## 3. Interfaces por funcionalidad (ISP, la I de SOLID)
+- `Nuevo`, `Listo`, `Ejecutando`, `Bloqueado`, `Terminado` y `EsperandoMemoria` **son un** `EstadoProceso`.
+- `PrimerAjuste`, `MejorAjuste` y `PeorAjuste` **son una** `PoliticaAsignacion`.
+- `ErrorDeDominio` **es un** `Error`.
 
-"Cada interfaz tiene una única función y no se fuerza a ningún cliente a depender de métodos que no usa."
+En los tres casos la subclase puede **sustituir** a la base (principio de Liskov). **No se hereda "para reutilizar código"**.
+El `Simulador` no hereda de nada: **tiene** memoria, planificador y métricas (composición).
 
-Cada clase implementa **2 o 3 interfaces de funcionalidad** más `IImprimible<T>` (el `estado()`):
+## 4. Clases abstractas
 
-| Clase | Interfaces | Quién usa cada una |
-|-------|------------|--------------------|
-| `Proceso` | `IProcesoConsultable`, `IProcesoAdmisible`, `IProcesoEjecutable`, `IProcesoEntradaSalida`, `IImprimible` | tests / fase de admisión / planificador / E/S |
-| `GestorMemoria` | `IAsignadorMemoria`, `ILiberadorMemoria`, `IConsultaMemoria`, `IImprimible` | admisión / finalización / métricas |
-| `BloqueMemoria` | `IBloqueConsultable`, `IBloqueModificable`, `IImprimible` | políticas (sólo leen) / gestor (modifica) |
-| `PlanificadorRoundRobin` | `IPlanificador`, `IConsultaPlanificador`, `IImprimible` | simulador / consultas |
-| `ColaBloqueados` | `IGestionBloqueos`, `IConsultaBloqueados`, `IImprimible` | |
-| `RegistroProcesos` | `IRegistroProcesos`, `IConsultaProcesos`, `IImprimible` | |
-| `Metricas` | `IRegistroMetricas`, `IConsultaMetricas`, `IImprimible` | simulador escribe / consultas leen |
-| `Simulador` | `ISimulador`, `IConsultaSimulador`, `IImprimible` | el test opera / el test consulta |
-| `ConfiguracionSimulacion` | `IConfiguracion`, `IImprimible` | |
-| `EventoEntradaSalida` | `IEventoEntradaSalida`, `IImprimible` | |
-| Políticas | `IPoliticaAsignacion` (a través de la clase abstracta) | |
+- **`EstadoProceso`**: da el comportamiento común (toda transición es inválida por defecto y lanza error). Cada estado redefine sólo lo suyo.
+- **`PoliticaAsignacion`**: el algoritmo común (filtrar huecos libres suficientes y ordenarlos por dirección) está escrito una sola vez. El paso que cambia es el método abstracto `ordenar()`. Es el patrón **Método Plantilla**.
 
-Ejemplo para la defensa: las políticas reciben los bloques como `IBloqueConsultable`. **No pueden** llamar a `asignarA()` porque ese método está en `IBloqueModificable`, que sólo usa el `GestorMemoria`.
+## 5. Polimorfismo
 
-`IProcesoPlanificable` e `IProcesoGestionable` **no agregan métodos**. Son combinaciones de las interfaces chicas para los colaboradores que necesitan más de una funcionalidad: el planificador ejecuta y bloquea, y el registro además admite.
+Es el mismo mensaje con distinto comportamiento según el objeto:
+- `politica.elegir(...)` responde según sea First, Best o Worst-Fit.
+- `estado.admitir()` responde según el estado.
+- `regla.aplica(...)` y `regla.aplicar(...)` responden según la regla.
+- `entradaSalida.correspondeDispararEn(...)` responde según haya o no E/S.
 
----
+**En los tests:** `it.each([new PrimerAjuste(), new MejorAjuste(), new PeorAjuste()])` corre **el mismo test** con las tres políticas.
 
-## 4. Principios SOLID: dónde y cuándo se aplicaron
+## 6. Interfaces por funcionalidad
 
-- **S, Responsabilidad Única** (el que pidió el profe):
-  - `Proceso`: sus transiciones y contadores.
-  - `GestorMemoria`: los bloques y sus invariantes.
-  - Política: elegir el hueco.
-  - `PlanificadorRoundRobin`: la CPU y la cola.
-  - `ColaBloqueados`: los temporizadores de E/S.
+Cada interfaz tiene una sola función, y ningún cliente depende de métodos que no usa (principio I de SOLID):
+
+| Clase | Interfaces |
+|-------|-----------|
+| `Proceso` | `IProcesoConsultable`, `IProcesoCicloDeVida`, `IProcesoEntradaSalida` (+ `IImprimible`) |
+| `AdministradorMemoria` | `IAsignadorMemoria`, `ILiberadorMemoria`, `IConsultaMemoria` (+ `IImprimible`) |
+| `BloqueMemoria` | `IBloqueConsultable`, `IBloqueModificable` (+ `IImprimible`) |
+| `PlanificadorRoundRobin` | `IPlanificador`, `IConsultaPlanificador`, `IControlCpu` (+ `IImprimible`) |
+| `Metricas` | `IRegistroMetricas`, `IConsultaMetricas` (+ `IImprimible`) |
+| `Simulador` | `ISimulador`, `IConsultaSimulador` (+ `IImprimible`) |
+| Estados / políticas / reglas / E/S | `IEstadoProceso` / `IPoliticaAsignacion` / `IReglaCpu` / `IEntradaSalida` |
+
+Dos ejemplos para la defensa:
+- Las reglas reciben la CPU como `IControlCpu`, así que sólo pueden liberar la CPU, encolar y bloquear; no ven el historial.
+- Las políticas reciben los bloques como `IBloqueConsultable`, así que no pueden asignarlos.
+
+## 7. SOLID: dónde y cuándo se pensó cada uno
+
+- **S, Responsabilidad Única.** Lo pensé al partir el `SimuladorSO` de Python, que hacía todo:
+  - `Proceso`: su estado y sus contadores.
+  - `AdministradorMemoria`: los bloques.
+  - Política: qué hueco elegir.
+  - `PlanificadorRoundRobin`: la CPU y las colas.
+  - Cada regla: un solo caso del fin de una unidad de CPU.
   - `Metricas`: los cálculos.
-  - `Simulador`: **sólo coordina** las 4 fases.
-
-  *Cuándo lo pensé:* al ver que el Simulador iba a concentrar toda la lógica (lo que la consigna pide evitar), lo partí en partes compuestas.
-- **O, Abierto/Cerrado:** para agregar una política nueva (por ejemplo, *Next-Fit*) se crea una subclase de `PoliticaAsignacion` y no se toca `GestorMemoria`.
-- **L, Sustitución de Liskov:** cualquier `PrimerAjuste`, `MejorAjuste` o `PeorAjuste` reemplaza a `IPoliticaAsignacion` y el gestor funciona igual. El test `it.each([...políticas])` lo prueba con **el mismo test** para las tres.
-- **I, Segregación de Interfaces:** ver la sección 3.
-- **D, Inversión de Dependencias:** `GestorMemoria` depende de `IPoliticaAsignacion`, no de `PrimerAjuste`. Los atributos del `Simulador` están tipados con interfaces (`IAsignadorMemoria & ILiberadorMemoria & ...`).
-
----
-
-## 5. Herencia: sólo cuando hay "es un"
-
-> **No decir "heredé para reutilizar código".** Se hereda porque la subclase **es un** tipo de la base y **puede sustituirla**.
-
-Hay sólo dos herencias:
-1. `PrimerAjuste / MejorAjuste / PeorAjuste` **extienden** `PoliticaAsignacion`: cada una **es una** política de asignación y puede reemplazarla (Liskov).
-2. `ErrorDeDominio` **extiende** `Error`: **es un** error y funciona en cualquier `try/catch` o `toThrow`.
-
-**Dónde NO usé herencia y por qué:** el `Simulador` **tiene** memoria, planificador, etc. (composición), no **es** una memoria. `Proceso` no hereda de nada: los estados se modelan con un `enum` y transiciones validadas. Crear una subclase por cada estado sería una jerarquía artificial, y la consigna dice que no se exige.
-
----
-
-## 6. Clase abstracta: `PoliticaAsignacion`
-
-**Por qué abstracta y no sólo una interfaz:** las tres políticas **comparten el mismo algoritmo** (filtrar los huecos libres suficientes, ordenarlos por dirección y devolver `null` si no hay ninguno). Sólo cambia **un paso**: cuál candidato elegir.
-- La parte común está implementada una sola vez en `elegirBloque()`. Es el patrón **Método Plantilla**.
-- El paso variable es `protected abstract seleccionar(candidatos)`.
-- No se puede instalar una "política genérica" porque la clase abstracta no se puede instanciar.
-
-La interfaz `IPoliticaAsignacion` sigue existiendo: es el **contrato**, y la clase abstracta es **una base común** para implementarlo.
-
----
-
-## 7. Polimorfismo (7 puntos)
-
-`GestorMemoria.asignar()` hace `this.getPolitica().elegirBloque(...)` **sin ningún `if` por tipo**.
-Según qué objeto se haya pasado en la configuración, el hueco elegido es otro:
-
-```ts
-new ConfiguracionSimulacion(1024, 2, new PeorAjuste())
-```
-
-**En los tests:** `tests/rf04-asignacion.test.ts` usa `it.each` con las tres políticas. El test es el mismo y cada objeto responde con su comportamiento.
-Los empates se resuelven por la menor dirección, usando `<` y `>` estrictos sobre candidatos ya ordenados.
-
----
+  - `Simulador`: sólo coordina las 4 fases.
+- **O, Abierto/Cerrado.** Una política nueva (por ejemplo, Next-Fit) o una regla nueva es una clase nueva, y no se modifica el administrador ni el planificador.
+- **L, Liskov.** Cualquier estado, política o regla sustituye a su base o interfaz.
+- **I, Segregación de Interfaces.** Ver la sección 6.
+- **D, Inversión de Dependencias.** El `Simulador` guarda sus partes tipadas con interfaces, y la política se inyecta en el constructor.
 
 ## 8. Composición y colecciones
 
-- `Simulador` ◆ `RegistroProcesos`, `GestorMemoria`, `PlanificadorRoundRobin`, `ColaBloqueados`, `Metricas`: el simulador **las crea en su constructor** y viven y mueren con él. Es **composición**.
-- `Simulador` ◇ `ConfiguracionSimulacion`: la recibe de afuera. Es **agregación**.
-- `GestorMemoria` ◆ `BloqueMemoria` (1..*, ordenados por inicio): el gestor los crea y los divide.
-- Colecciones: `_procesos`, `_bloques`, `_colaListos`. Son **privadas**, se reemplazan con su setter (`setColaListos([...cola, proceso])`) y hacia afuera **sólo salen copias congeladas**.
-  El setter `setBloques()` **verifica los invariantes** de la memoria: sin huecos, sin solapamientos, la suma igual al total y sin dos libres juntos.
+- `Simulador` ◆ `AdministradorMemoria`, `PlanificadorRoundRobin`, `Metricas`: los **crea** en su constructor y viven con él.
+- `AdministradorMemoria` ◆ `BloqueMemoria` (1..*); `PlanificadorRoundRobin` ◆ `IReglaCpu` (4).
+- Las listas son privadas. Se reemplazan con su setter (`setColaListos([...cola, p])`) y hacia afuera sólo salen copias.
+  `setBloques()` verifica los invariantes: sin huecos, sin solapamientos, la suma igual al total y sin dos libres juntos.
+  `setCpu()` verifica que nunca haya más de un proceso en la CPU.
+- **En el diagrama de clases,** las referencias a otros objetos van como **relaciones** con rol y multiplicidad, **no** como atributos.
 
-**En el diagrama de clases:** las referencias a otros objetos **no se escriben como atributos**. Se dibujan como **relaciones** con rol (`-_memoria`) y multiplicidad. Si se dibujan como variable interna, el diagrama queda incompleto.
+## 9. Coalescencia sin if
 
----
+Al liberar, se toman los bloques **ocupados** (que no se mueven) y se rearman los huecos libres **entre** ellos.
+Cada hueco queda en un solo bloque, así que dos bloques libres contiguos quedan fusionados. Es coalescencia, no compactación.
 
-## 9. `estado()`: "imprimí tu estado completo"
+## 10. `estado()`
 
-Todas las clases implementan `IImprimible<T>` con `estado()`, que devuelve **toda** la información en un objeto congelado:
+Todas las clases lo tienen: `console.log(memoria.estado())` muestra todo.
+Imprimir no es evidencia de que funciona, así que `tests/rf10-estado-sistema.test.ts` compara el estado completo con `toEqual`.
 
-```ts
-console.log(memoria.estado());
-console.log(simulador.estado());
-```
+## 11. Decisiones del dominio
 
-Imprimir **no** es evidencia de funcionamiento, así que hay un **test** que compara el objeto completo con `toEqual` (`tests/rf10-estado-sistema.test.ts`).
+- Registrar un proceso lo deja NUEVO; se admite en la fase 1 del próximo tick.
+- Si un proceso no entra en memoria, los siguientes igual se intentan admitir.
+- La memoria liberada en un tick se ofrece en la admisión del tick siguiente.
+- Cambios de contexto: sólo cuentan la expulsión por quantum con otros listos y el bloqueo por E/S.
+- Validación de la E/S: ticks y duración deben ser enteros positivos. El proceso no puede estar terminado y admite un solo evento. El evento debe dispararse después de la CPU ya consumida y antes de terminar.
+- El test `escenario del main.py de la cátedra` reproduce el ejemplo del Python y da el mismo orden de ejecución.
 
----
-
-## 10. Decisiones del dominio que te pueden preguntar
-
-- **Cuándo se admite un proceso:** registrarlo lo deja `NUEVO`. La admisión es en la fase 1 del **siguiente** `avanzarTick()`.
-- **Espera sin bloqueo en cabeza:** si P2 no entra pero P3 sí, P3 es admitido igual (RF03).
-- **La memoria liberada en el tick N** recién se ofrece en la fase 1 del tick N+1.
-- **Prioridad al final de una unidad de CPU:** primero terminar, después bloquear por E/S y por último el quantum.
-- **Cambios de contexto:** se cuentan en la expulsión por quantum con otros listos y en el bloqueo por E/S. No se cuentan el despacho inicial, la finalización ni la renovación de quantum.
-- **Validación de la E/S:** los ticks y la duración deben ser enteros positivos. El proceso no puede estar terminado, admite un solo evento, el disparo debe ser mayor que la CPU ya consumida y menor que la CPU total (si no, nunca se dispararía, porque la finalización tiene prioridad).
-- **Estructuras de datos:** arreglos. La cola de listos es FIFO (se agrega al final y se saca el primero). Los bloques están ordenados por dirección, lo que simplifica la coalescencia (sólo se miran el vecino `i-1` y el `i+1`).
-
----
-
-## 11. Qué poner en el informe (PDF)
+## 12. Qué va en el informe (PDF)
 
 1. Identificación, objetivo y escenario.
-2. Diseño y responsabilidades: una tabla **clase → responsabilidad → interfaces** (sin pegar código).
-3. Diagrama de clases (1 solo) y los 3 diagramas de secuencia.
-4. Decisiones de POO: encapsulamiento doble, interfaces, SOLID (**cuándo** lo pensaste), herencia, abstracta, polimorfismo y composición.
+2. Tabla **clase → responsabilidad → interfaces** (sin código).
+3. Diagrama de clases (uno solo) y los 3 diagramas de secuencia.
+4. Decisiones de POO: doble encapsulamiento, cómo se evitó el `if`, herencia, abstractas, polimorfismo y SOLID (cuándo lo pensaste).
 5. Política de memoria, estados y orden por tick.
-6. Matriz RF → clase/método → test (está en el README).
-7. Resultados y cobertura: captura de `npm run test:cobertura` y del CI en verde. Indicá la herramienta (Vitest + V8), el comando y el alcance (`src/**`).
-8. Análisis de fragmentación: el caso de huecos de 100 y 300 da 25 %, y compará las políticas porque se implementaron las tres.
+6. Matriz RF → clase → test (está en el README).
+7. Resultados y cobertura: capturas de `npm run test:cobertura` y de GitHub Actions. Indicá la herramienta, el comando y el alcance.
+8. Fragmentación: el caso 100 + 300 da 25 %, y compará las 3 políticas.
 9. Conclusiones y fuentes.

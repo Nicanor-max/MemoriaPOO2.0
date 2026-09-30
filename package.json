@@ -1,5 +1,5 @@
 {
-  "name": "simulador-procesos-memoria",
+  "name": "memoria-poo",
   "version": "1.0.0",
   "description": "Biblioteca de clases que simula procesos, memoria contigua y planificación Round-Robin (AE2 Paradigmas II - UCP 2026)",
   "private": true,

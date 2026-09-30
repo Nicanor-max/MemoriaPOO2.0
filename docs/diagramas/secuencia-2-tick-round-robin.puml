@@ -1,47 +1,45 @@
 @startuml secuencia-2-tick-round-robin
-title Secuencia 2 - RF06/RF07: un tick de Round-Robin (fases 3 y 4)
+title Secuencia 2 - RF06/RF07: un tick de Round-Robin
 autonumber
 actor Test
 participant ":Simulador" as S
 participant ":PlanificadorRoundRobin" as PL
-participant "proceso:Proceso" as P
-participant ":GestorMemoria" as M
+participant "p:Proceso" as P
+participant "regla:IReglaCpu" as R
+participant ":AdministradorMemoria" as M
 participant ":Metricas" as MT
 
 Test -> S : avanzarTick()
 S -> S : admitirProcesos()
-S -> S : actualizarBloqueados()
-S -> S : ejecutarCpu()
+S -> PL : actualizarBloqueados()
 S -> PL : ejecutarTick()
-opt CPU libre y hay listos
-  PL -> PL : despacharSiguiente()
+PL -> PL : despacharSiLaCpuEstaLibre()
+note right of PL : toma de la cola\n(1 - procesos en CPU) procesos
+opt la CPU estaba libre
   PL -> P : despachar()
-  note right of P : LISTO -> EJECUTANDO, quantum = 0
 end
 PL -> P : ejecutarUnaUnidad()
-note right of P : cpuRestante - 1, quantumConsumido + 1
-PL -> PL : resolverFinDeUnidad(proceso)
-PL -> P : haFinalizadoSuCpu()
-alt CPU restante = 0 (prioridad 1)
-  PL -> P : terminar()
-  PL --> S : ResultadoTick(procesoTerminado)
-  S -> M : liberar(pid)
-  M -> M : absorber vecinos libres (coalescencia)
-else agotó el quantum (prioridad 3)
-  PL -> P : agotoQuantum(quantum)
-  alt hay otros listos
-    PL -> P : expulsar()
-    PL -> PL : setColaListos([...cola, proceso])
-    PL --> S : ResultadoTick(huboCambioDeContexto = true)
-    S -> MT : registrarCambioDeContexto()
-  else es el único
-    PL -> P : renovarQuantum()
-    PL --> S : ResultadoTick(sin cambio de contexto)
-  end
+PL -> PL : ejecutar(p)
+loop reglas en orden: Finalizacion, EntradaSalida, QuantumAgotado, Continuar
+  PL -> R : aplica(p, this)
 end
-S -> MT : registrarUsoDeCpu(true)
-S -> S : actualizarRelojYMetricas()
+note right of R : se usa la PRIMERA que devuelve true\n(polimorfismo, sin if)
+PL -> R : aplicar(p, this)
+alt ReglaFinalizacion
+  R -> P : terminar()
+  R -> PL : liberarCpu()
+else ReglaQuantumAgotado (hay otros listos)
+  R -> P : expulsar()
+  R -> PL : liberarCpu()
+  R -> PL : encolar(p)
+else ReglaContinuar
+  R -> P : renovarQuantum(quantum)
+end
+R --> PL : ResultadoTick
+PL --> S : ResultadoTick
+S -> M : liberar(pid) por cada terminado
+M -> M : coalescencia()
+S -> MT : registrarTick(resultado)
 S -> S : setTick(getTick() + 1)
 S -> MT : recalcular(memoria, tick)
-MT -> M : getMemoriaLibreTotal() / getMayorBloqueLibre()
 @enduml
