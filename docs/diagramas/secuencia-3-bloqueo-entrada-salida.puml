@@ -1,0 +1,49 @@
+@startuml secuencia-3-bloqueo-entrada-salida
+title Secuencia 3 - RF08: bloqueo por E/S y retorno a listos
+autonumber
+actor Test
+participant ":Simulador" as S
+participant ":RegistroProcesos" as R
+participant "evento:EventoEntradaSalida" as E
+participant "proceso:Proceso" as P
+participant ":PlanificadorRoundRobin" as PL
+participant ":ColaBloqueados" as CB
+participant ":Metricas" as MT
+
+Test -> S : programarEntradaSalida(1, 1, 2)
+S -> E ** : new EventoEntradaSalida(1, 2)
+S -> R : buscar(1)
+R --> S : proceso
+S -> P : programarEntradaSalida(evento)
+note right of P : valida: no terminado, un solo evento,\n1 <= ticks < cpuTotal
+
+== Tick N: se dispara la E/S ==
+Test -> S : avanzarTick()
+S -> PL : ejecutarTick()
+PL -> P : ejecutarUnaUnidad()
+PL -> P : debeBloquearse()
+P -> E : correspondeDispararEn(cpuConsumida)
+E --> P : true
+PL -> P : bloquear()
+note right of P : EJECUTANDO -> BLOQUEADO\nconserva su memoria
+PL --> S : ResultadoTick(procesoBloqueado, huboCambioDeContexto = true)
+S -> CB : agregar(proceso)
+S -> MT : registrarCambioDeContexto()
+
+== Ticks siguientes: fase 2 ==
+loop mientras bloqueoRestante > 0
+  Test -> S : avanzarTick()
+  S -> S : actualizarBloqueados()
+  S -> CB : actualizarTemporizadores()
+  CB -> P : avanzarBloqueo()
+  alt bloqueoRestante llega a 0
+    P --> CB : true (BLOQUEADO -> LISTO)
+    CB --> S : [proceso]
+    S -> PL : encolar(proceso)
+    note right of PL : al final de la cola de listos;\npuede despacharse en este mismo tick (fase 3)
+  else sigue bloqueado
+    P --> CB : false
+    CB --> S : []
+  end
+end
+@enduml

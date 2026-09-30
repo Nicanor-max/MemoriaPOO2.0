@@ -1,0 +1,47 @@
+@startuml secuencia-2-tick-round-robin
+title Secuencia 2 - RF06/RF07: un tick de Round-Robin (fases 3 y 4)
+autonumber
+actor Test
+participant ":Simulador" as S
+participant ":PlanificadorRoundRobin" as PL
+participant "proceso:Proceso" as P
+participant ":GestorMemoria" as M
+participant ":Metricas" as MT
+
+Test -> S : avanzarTick()
+S -> S : admitirProcesos()
+S -> S : actualizarBloqueados()
+S -> S : ejecutarCpu()
+S -> PL : ejecutarTick()
+opt CPU libre y hay listos
+  PL -> PL : despacharSiguiente()
+  PL -> P : despachar()
+  note right of P : LISTO -> EJECUTANDO, quantum = 0
+end
+PL -> P : ejecutarUnaUnidad()
+note right of P : cpuRestante - 1, quantumConsumido + 1
+PL -> PL : resolverFinDeUnidad(proceso)
+PL -> P : haFinalizadoSuCpu()
+alt CPU restante = 0 (prioridad 1)
+  PL -> P : terminar()
+  PL --> S : ResultadoTick(procesoTerminado)
+  S -> M : liberar(pid)
+  M -> M : absorber vecinos libres (coalescencia)
+else agotó el quantum (prioridad 3)
+  PL -> P : agotoQuantum(quantum)
+  alt hay otros listos
+    PL -> P : expulsar()
+    PL -> PL : setColaListos([...cola, proceso])
+    PL --> S : ResultadoTick(huboCambioDeContexto = true)
+    S -> MT : registrarCambioDeContexto()
+  else es el único
+    PL -> P : renovarQuantum()
+    PL --> S : ResultadoTick(sin cambio de contexto)
+  end
+end
+S -> MT : registrarUsoDeCpu(true)
+S -> S : actualizarRelojYMetricas()
+S -> S : setTick(getTick() + 1)
+S -> MT : recalcular(memoria, tick)
+MT -> M : getMemoriaLibreTotal() / getMayorBloqueLibre()
+@enduml
