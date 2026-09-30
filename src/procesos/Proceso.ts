@@ -1,64 +1,48 @@
-import { ErrorDeDominio } from '../comun/ErrorDeDominio';
-import { EstadoProceso } from '../comun/EstadoProceso';
-import { exigirEnteroNoNegativo, exigirEnteroPositivo } from '../comun/validaciones';
-import { DatosProceso } from '../interfaces/Datos';
-import { IEventoEntradaSalida } from '../interfaces/IEventoEntradaSalida';
+import { exigir, exigirEnteroNoNegativo, exigirEnteroPositivo, exigirTexto } from '../comun/Validador';
+import { DatosEntradaSalida, DatosProceso } from '../interfaces/Datos';
+import { IEntradaSalida } from '../interfaces/IEntradaSalida';
+import { IEstadoProceso } from '../interfaces/IEstadoProceso';
 import { IImprimible } from '../interfaces/IImprimible';
-import {
-  IProcesoAdmisible,
-  IProcesoConsultable,
-  IProcesoEjecutable,
-  IProcesoEntradaSalida,
-} from '../interfaces/IProceso';
+import { IProcesoCicloDeVida, IProcesoConsultable, IProcesoEntradaSalida } from '../interfaces/IProceso';
+import { EntradaSalida } from './EntradaSalida';
+import { Nuevo } from './estados/Nuevo';
+import { SinEntradaSalida } from './SinEntradaSalida';
 
 /**
- * Proceso del sistema operativo simulado.
- * Responsabilidad única: proteger SUS transiciones de estado y SUS contadores (RF02, RF03).
- *
- * Doble encapsulamiento:
- *  1) Los atributos son privados y llevan guion bajo (_cpuRestante).
- *  2) Nadie, ni siquiera la propia clase, toca el atributo directamente: todo pasa por
- *     getX() / setX(). Los setters son privados y validan la regla del dominio.
+ * Bloque de Control de Proceso (PCB). Protege sus contadores y sus transiciones.
+ * Doble encapsulamiento: atributos privados con "_" + getters/setters.
+ * Los setters son privados y validan; la clase nunca toca "_x" fuera de su get/set.
  */
 export class Proceso
-  implements
-    IProcesoConsultable,
-    IProcesoAdmisible,
-    IProcesoEjecutable,
-    IProcesoEntradaSalida,
-    IImprimible<DatosProceso>
+  implements IProcesoConsultable, IProcesoCicloDeVida, IProcesoEntradaSalida, IImprimible<DatosProceso>
 {
-  private _pid!: number;
+  private _pid!: string;
   private _memoriaRequerida!: number;
   private _cpuTotal!: number;
   private _cpuRestante!: number;
-  private _estado!: EstadoProceso;
+  private _estado!: IEstadoProceso;
   private _quantumConsumido!: number;
   private _bloqueoRestante!: number;
-  private _eventoEntradaSalida!: IEventoEntradaSalida | null;
-  private _entradaSalidaDisparada!: boolean;
+  private _entradaSalida!: IEntradaSalida & IImprimible<DatosEntradaSalida | null>;
 
-  public constructor(pid: number, memoriaRequerida: number, cpuTotal: number) {
+  public constructor(pid: string, memoriaRequerida: number, cpuTotal: number) {
     this.setPid(pid);
     this.setMemoriaRequerida(memoriaRequerida);
     this.setCpuTotal(cpuTotal);
     this.setCpuRestante(cpuTotal);
-    this.setEstado(EstadoProceso.Nuevo);
+    this.setEstado(new Nuevo());
     this.setQuantumConsumido(0);
     this.setBloqueoRestante(0);
-    this.setEventoEntradaSalida(null);
-    this.setEntradaSalidaDisparada(false);
+    this.setEntradaSalida(new SinEntradaSalida());
   }
 
-  // =====================================================================
-  // Getters (públicos) y setters (privados, con validación)
-  // =====================================================================
-  public getPid(): number {
+  // ======================= Getters y setters =======================
+  public getPid(): string {
     return this._pid;
   }
 
-  private setPid(valor: number): void {
-    exigirEnteroPositivo(valor, 'El PID');
+  private setPid(valor: string): void {
+    exigirTexto(valor, 'El PID');
     this._pid = valor;
   }
 
@@ -89,11 +73,11 @@ export class Proceso
     this._cpuRestante = valor;
   }
 
-  public getEstado(): EstadoProceso {
+  private getEstado(): IEstadoProceso {
     return this._estado;
   }
 
-  private setEstado(valor: EstadoProceso): void {
+  private setEstado(valor: IEstadoProceso): void {
     this._estado = valor;
   }
 
@@ -111,61 +95,29 @@ export class Proceso
   }
 
   private setBloqueoRestante(valor: number): void {
-    exigirEnteroNoNegativo(valor, 'El tiempo de bloqueo restante');
+    exigirEnteroNoNegativo(valor, 'El bloqueo restante');
     this._bloqueoRestante = valor;
   }
 
-  /** Privado: el evento es un objeto, no se entrega hacia afuera (se ve en estado()). */
-  private getEventoEntradaSalida(): IEventoEntradaSalida | null {
-    return this._eventoEntradaSalida;
+  private getEntradaSalida(): IEntradaSalida & IImprimible<DatosEntradaSalida | null> {
+    return this._entradaSalida;
   }
 
-  private setEventoEntradaSalida(valor: IEventoEntradaSalida | null): void {
-    this._eventoEntradaSalida = valor;
+  private setEntradaSalida(valor: IEntradaSalida & IImprimible<DatosEntradaSalida | null>): void {
+    this._entradaSalida = valor;
   }
 
-  private getEntradaSalidaDisparada(): boolean {
-    return this._entradaSalidaDisparada;
+  // ======================= Consultas =======================
+  public getNombreEstado(): string {
+    return this.getEstado().getNombre();
   }
 
-  private setEntradaSalidaDisparada(valor: boolean): void {
-    this._entradaSalidaDisparada = valor;
-  }
-
-  /** Dato derivado: no se guarda, se calcula. */
   public getCpuConsumida(): number {
     return this.getCpuTotal() - this.getCpuRestante();
   }
 
-  // =====================================================================
-  // IProcesoAdmisible (RF03)
-  // =====================================================================
-  public esperarMemoria(): void {
-    this.cambiarEstado(EstadoProceso.EsperandoMemoria, [
-      EstadoProceso.Nuevo,
-      EstadoProceso.EsperandoMemoria,
-    ]);
-  }
-
-  public admitir(): void {
-    this.cambiarEstado(EstadoProceso.Listo, [EstadoProceso.Nuevo, EstadoProceso.EsperandoMemoria]);
-  }
-
-  // =====================================================================
-  // IProcesoEjecutable (RF07)
-  // =====================================================================
-  public despachar(): void {
-    this.cambiarEstado(EstadoProceso.Ejecutando, [EstadoProceso.Listo]);
-    this.setQuantumConsumido(0);
-  }
-
-  public ejecutarUnaUnidad(): void {
-    this.exigirEstado(EstadoProceso.Ejecutando, 'ejecutar');
-    if (this.haFinalizadoSuCpu()) {
-      throw new ErrorDeDominio(`El proceso ${this.getPid()} no tiene CPU restante.`);
-    }
-    this.setCpuRestante(this.getCpuRestante() - 1);
-    this.setQuantumConsumido(this.getQuantumConsumido() + 1);
+  public estaPendienteDeMemoria(): boolean {
+    return this.getEstado().estaPendienteDeMemoria();
   }
 
   public haFinalizadoSuCpu(): boolean {
@@ -176,116 +128,87 @@ export class Proceso
     return this.getQuantumConsumido() >= quantum;
   }
 
-  public renovarQuantum(): void {
-    this.exigirEstado(EstadoProceso.Ejecutando, 'renovar el quantum');
+  public debeBloquearse(): boolean {
+    return !this.haFinalizadoSuCpu() && this.getEntradaSalida().correspondeDispararEn(this.getCpuConsumida());
+  }
+
+  // ======================= Ciclo de vida =======================
+  public admitir(): void {
+    this.setEstado(this.getEstado().admitir());
+  }
+
+  public esperarMemoria(): void {
+    this.setEstado(this.getEstado().esperarMemoria());
+  }
+
+  public despachar(): void {
+    this.setEstado(this.getEstado().despachar());
     this.setQuantumConsumido(0);
   }
 
+  public ejecutarUnaUnidad(): void {
+    this.setEstado(this.getEstado().ejecutar());
+    exigir(!this.haFinalizadoSuCpu(), `El proceso ${this.getPid()} no tiene CPU restante.`);
+    this.setCpuRestante(this.getCpuRestante() - 1);
+    this.setQuantumConsumido(this.getQuantumConsumido() + 1);
+  }
+
+  /** Si agotó el quantum vuelve a 0; si no, queda igual (resto de la división). */
+  public renovarQuantum(quantum: number): void {
+    exigirEnteroPositivo(quantum, 'El quantum');
+    this.setQuantumConsumido(this.getQuantumConsumido() % quantum);
+  }
+
   public expulsar(): void {
-    this.cambiarEstado(EstadoProceso.Listo, [EstadoProceso.Ejecutando]);
+    this.setEstado(this.getEstado().expulsar());
   }
 
   public terminar(): void {
-    if (!this.haFinalizadoSuCpu()) {
-      throw new ErrorDeDominio(`El proceso ${this.getPid()} no puede terminar: le queda CPU.`);
-    }
-    this.cambiarEstado(EstadoProceso.Terminado, [EstadoProceso.Ejecutando]);
+    exigir(this.haFinalizadoSuCpu(), `El proceso ${this.getPid()} no puede terminar: le queda CPU.`);
+    this.setEstado(this.getEstado().terminar());
   }
 
-  // =====================================================================
-  // IProcesoEntradaSalida (RF08)
-  // =====================================================================
-  /**
-   * Validación del evento: el proceso no debe haber terminado, sólo se admite un evento,
-   * y el evento tiene que poder dispararse (después de la CPU ya consumida y antes de terminar,
-   * porque la finalización tiene prioridad sobre el bloqueo).
-   */
-  public programarEntradaSalida(evento: IEventoEntradaSalida): void {
-    if (this.getEstado() === EstadoProceso.Terminado) {
-      throw new ErrorDeDominio(`El proceso ${this.getPid()} ya terminó.`);
-    }
-    if (this.getEventoEntradaSalida() !== null) {
-      throw new ErrorDeDominio(`El proceso ${this.getPid()} ya tiene una E/S programada.`);
-    }
-    if (evento.getTicksDeCpu() <= this.getCpuConsumida()) {
-      throw new ErrorDeDominio('La E/S debe dispararse después de la CPU ya consumida.');
-    }
-    if (evento.getTicksDeCpu() >= this.getCpuTotal()) {
-      throw new ErrorDeDominio('La E/S nunca se dispararía: el proceso termina antes.');
-    }
-    this.setEventoEntradaSalida(evento);
-  }
-
-  public debeBloquearse(): boolean {
-    const evento = this.getEventoEntradaSalida();
-    return (
-      evento !== null &&
-      !this.getEntradaSalidaDisparada() &&
-      !this.haFinalizadoSuCpu() &&
-      evento.correspondeDispararEn(this.getCpuConsumida())
-    );
+  // ======================= Entrada / Salida =======================
+  /** Valida: no terminado, un solo evento, y que pueda dispararse antes de terminar. */
+  public programarEntradaSalida(ticksDeCpu: number, duracion: number): void {
+    const evento = new EntradaSalida(ticksDeCpu, duracion);
+    exigir(this.getEstado().permiteProgramarEntradaSalida(), `El proceso ${this.getPid()} ya terminó.`);
+    exigir(!this.getEntradaSalida().estaProgramada(), `El proceso ${this.getPid()} ya tiene una E/S programada.`);
+    exigir(ticksDeCpu > this.getCpuConsumida(), 'La E/S debe dispararse después de la CPU ya consumida.');
+    exigir(ticksDeCpu < this.getCpuTotal(), 'La E/S nunca se dispararía: el proceso termina antes.');
+    this.setEntradaSalida(evento);
   }
 
   public bloquear(): void {
-    const evento = this.getEventoEntradaSalida();
-    if (evento === null || !this.debeBloquearse()) {
-      throw new ErrorDeDominio(`El proceso ${this.getPid()} no tiene una E/S para disparar.`);
-    }
-    this.cambiarEstado(EstadoProceso.Bloqueado, [EstadoProceso.Ejecutando]);
-    this.setBloqueoRestante(evento.getDuracion());
-    this.setEntradaSalidaDisparada(true);
+    exigir(this.debeBloquearse(), `El proceso ${this.getPid()} no tiene una E/S para disparar.`);
+    this.setEstado(this.getEstado().bloquear());
+    this.setBloqueoRestante(this.getEntradaSalida().getDuracion());
   }
 
-  /** Descuenta un tick de bloqueo. Devuelve true si el proceso volvió a Listo. */
+  /** Descuenta un tick de bloqueo. Devuelve true cuando llega a 0. */
   public avanzarBloqueo(): boolean {
-    this.exigirEstado(EstadoProceso.Bloqueado, 'avanzar el bloqueo');
+    this.setEstado(this.getEstado().avanzarBloqueo());
     this.setBloqueoRestante(this.getBloqueoRestante() - 1);
-    if (this.getBloqueoRestante() === 0) {
-      this.cambiarEstado(EstadoProceso.Listo, [EstadoProceso.Bloqueado]);
-      return true;
-    }
-    return false;
+    return this.getBloqueoRestante() === 0;
   }
 
-  // =====================================================================
-  // IImprimible
-  // =====================================================================
+  public desbloquear(): void {
+    exigir(this.getBloqueoRestante() === 0, `El proceso ${this.getPid()} todavía está en E/S.`);
+    this.setEstado(this.getEstado().desbloquear());
+  }
+
+  // ======================= Estado completo =======================
   public estado(): DatosProceso {
-    const evento = this.getEventoEntradaSalida();
     return Object.freeze({
       pid: this.getPid(),
       memoriaRequerida: this.getMemoriaRequerida(),
       cpuTotal: this.getCpuTotal(),
       cpuRestante: this.getCpuRestante(),
       cpuConsumida: this.getCpuConsumida(),
-      estado: this.getEstado(),
+      estado: this.getNombreEstado(),
       quantumConsumido: this.getQuantumConsumido(),
       bloqueoRestante: this.getBloqueoRestante(),
-      entradaSalida:
-        evento === null
-          ? null
-          : Object.freeze({ ticksDeCpu: evento.getTicksDeCpu(), duracion: evento.getDuracion() }),
-      entradaSalidaDisparada: this.getEntradaSalidaDisparada(),
+      entradaSalida: this.getEntradaSalida().estado(),
     });
-  }
-
-  // =====================================================================
-  // Reglas internas de transición
-  // =====================================================================
-  private cambiarEstado(nuevo: EstadoProceso, permitidosDesde: EstadoProceso[]): void {
-    if (!permitidosDesde.includes(this.getEstado())) {
-      throw new ErrorDeDominio(
-        `Transición inválida del proceso ${this.getPid()}: ${this.getEstado()} -> ${nuevo}.`,
-      );
-    }
-    this.setEstado(nuevo);
-  }
-
-  private exigirEstado(esperado: EstadoProceso, accion: string): void {
-    if (this.getEstado() !== esperado) {
-      throw new ErrorDeDominio(
-        `El proceso ${this.getPid()} no puede ${accion} en estado ${this.getEstado()}.`,
-      );
-    }
   }
 }

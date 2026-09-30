@@ -1,13 +1,13 @@
 import { IConsultaMemoria } from './IMemoria';
+import { ResultadoTick } from './IPlanificacion';
 
-/** Funcionalidad: registrar eventos y recalcular métricas (RF09). */
+/** Funcionalidad: registrar y recalcular métricas. */
 export interface IRegistroMetricas {
-  registrarUsoDeCpu(ocupada: boolean): void;
-  registrarCambioDeContexto(): void;
+  registrarTick(resultado: ResultadoTick): void;
   recalcular(memoria: IConsultaMemoria, ticksTranscurridos: number): void;
 }
 
-/** Funcionalidad: consultar métricas (RF09). */
+/** Funcionalidad: consultar métricas. */
 export interface IConsultaMetricas {
   getOcupacionMemoria(): number;
   getUtilizacionCpu(): number;

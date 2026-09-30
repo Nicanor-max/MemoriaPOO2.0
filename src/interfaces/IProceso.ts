@@ -1,57 +1,41 @@
-import { EstadoProceso } from '../comun/EstadoProceso';
 import { DatosProceso } from './Datos';
-import { IEventoEntradaSalida } from './IEventoEntradaSalida';
 import { IImprimible } from './IImprimible';
 
-/*
- * El proceso tiene CUATRO funcionalidades distintas y cada una es una interfaz.
- * Cada cliente depende sólo de la que usa (Segregación de Interfaces):
- *  - Los tests / vistas sólo consultan              -> IProcesoConsultable
- *  - La fase de admisión del Simulador lo admite    -> IProcesoAdmisible
- *  - El Planificador lo ejecuta en la CPU           -> IProcesoEjecutable
- *  - La E/S lo bloquea y desbloquea                 -> IProcesoEntradaSalida
- */
-
-/** Funcionalidad: consultar datos del proceso (sólo lectura). */
+/** Funcionalidad: consultar el proceso (sólo lectura). */
 export interface IProcesoConsultable {
-  getPid(): number;
+  getPid(): string;
   getMemoriaRequerida(): number;
   getCpuTotal(): number;
   getCpuRestante(): number;
   getCpuConsumida(): number;
-  getEstado(): EstadoProceso;
+  getNombreEstado(): string;
   getQuantumConsumido(): number;
   getBloqueoRestante(): number;
-}
-
-/** Funcionalidad: admisión en memoria (RF03). */
-export interface IProcesoAdmisible {
-  esperarMemoria(): void;
-  admitir(): void;
-}
-
-/** Funcionalidad: uso de la CPU (RF07). */
-export interface IProcesoEjecutable {
-  despachar(): void;
-  ejecutarUnaUnidad(): void;
+  estaPendienteDeMemoria(): boolean;
   haFinalizadoSuCpu(): boolean;
   agotoQuantum(quantum: number): boolean;
-  renovarQuantum(): void;
+  debeBloquearse(): boolean;
+}
+
+/** Funcionalidad: ciclo de vida (admisión y uso de CPU). */
+export interface IProcesoCicloDeVida {
+  admitir(): void;
+  esperarMemoria(): void;
+  despachar(): void;
+  ejecutarUnaUnidad(): void;
+  renovarQuantum(quantum: number): void;
   expulsar(): void;
   terminar(): void;
 }
 
-/** Funcionalidad: entrada/salida (RF08). */
+/** Funcionalidad: entrada/salida. */
 export interface IProcesoEntradaSalida {
-  programarEntradaSalida(evento: IEventoEntradaSalida): void;
-  debeBloquearse(): boolean;
+  programarEntradaSalida(ticksDeCpu: number, duracion: number): void;
   bloquear(): void;
   avanzarBloqueo(): boolean;
+  desbloquear(): void;
 }
 
-/** Lo que necesita el Planificador y la cola de bloqueados de un proceso. */
+/** Lo que necesitan el Simulador y el Planificador: las tres funcionalidades juntas. */
 export interface IProcesoPlanificable
-  extends IProcesoConsultable, IProcesoEjecutable, IProcesoEntradaSalida, IImprimible<DatosProceso> {}
-
-/** Lo que necesita el Registro/Simulador: todo lo anterior + admisión. */
-export interface IProcesoGestionable extends IProcesoPlanificable, IProcesoAdmisible {}
+  extends IProcesoConsultable, IProcesoCicloDeVida, IProcesoEntradaSalida, IImprimible<DatosProceso> {}

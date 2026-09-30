@@ -3,47 +3,42 @@ title Secuencia 3 - RF08: bloqueo por E/S y retorno a listos
 autonumber
 actor Test
 participant ":Simulador" as S
-participant ":RegistroProcesos" as R
-participant "evento:EventoEntradaSalida" as E
-participant "proceso:Proceso" as P
+participant "p:Proceso" as P
+participant "es:EntradaSalida" as ES
 participant ":PlanificadorRoundRobin" as PL
-participant ":ColaBloqueados" as CB
+participant "regla:ReglaEntradaSalida" as R
 participant ":Metricas" as MT
 
-Test -> S : programarEntradaSalida(1, 1, 2)
-S -> E ** : new EventoEntradaSalida(1, 2)
-S -> R : buscar(1)
-R --> S : proceso
-S -> P : programarEntradaSalida(evento)
-note right of P : valida: no terminado, un solo evento,\n1 <= ticks < cpuTotal
+Test -> S : programarEntradaSalida("P1", 1, 2)
+S -> P : programarEntradaSalida(1, 2)
+P -> ES ** : new EntradaSalida(1, 2)
+note right of P : reemplaza a SinEntradaSalida
 
 == Tick N: se dispara la E/S ==
 Test -> S : avanzarTick()
 S -> PL : ejecutarTick()
 PL -> P : ejecutarUnaUnidad()
-PL -> P : debeBloquearse()
-P -> E : correspondeDispararEn(cpuConsumida)
-E --> P : true
-PL -> P : bloquear()
-note right of P : EJECUTANDO -> BLOQUEADO\nconserva su memoria
-PL --> S : ResultadoTick(procesoBloqueado, huboCambioDeContexto = true)
-S -> CB : agregar(proceso)
-S -> MT : registrarCambioDeContexto()
+PL -> R : aplica(p, this)
+R -> P : debeBloquearse()
+P -> ES : correspondeDispararEn(1)
+ES --> P : true
+R --> PL : true
+PL -> R : aplicar(p, this)
+R -> P : bloquear()
+note right of P : EJECUTANDO -> BLOQUEADO\nconserva la memoria
+R -> PL : liberarCpu()
+R -> PL : agregarBloqueado(p)
+R --> PL : ResultadoTick(cambiosDeContexto = 1)
+PL --> S : ResultadoTick
+S -> MT : registrarTick(resultado)
 
 == Ticks siguientes: fase 2 ==
-loop mientras bloqueoRestante > 0
-  Test -> S : avanzarTick()
-  S -> S : actualizarBloqueados()
-  S -> CB : actualizarTemporizadores()
-  CB -> P : avanzarBloqueo()
-  alt bloqueoRestante llega a 0
-    P --> CB : true (BLOQUEADO -> LISTO)
-    CB --> S : [proceso]
-    S -> PL : encolar(proceso)
-    note right of PL : al final de la cola de listos;\npuede despacharse en este mismo tick (fase 3)
-  else sigue bloqueado
-    P --> CB : false
-    CB --> S : []
-  end
-end
+Test -> S : avanzarTick()
+S -> PL : actualizarBloqueados()
+PL -> P : avanzarBloqueo()
+P --> PL : true cuando llega a 0
+PL -> P : desbloquear()
+note right of P : BLOQUEADO -> LISTO
+PL -> PL : encolar(p)
+note right of PL : al final de la cola;\npuede despacharse en este mismo tick
 @enduml

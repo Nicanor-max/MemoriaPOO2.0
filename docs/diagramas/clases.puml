@@ -3,208 +3,128 @@
 title Simulador de procesos y memoria - Diagrama de clases
 skinparam classAttributeIconSize 0
 skinparam shadowing false
-skinparam linetype ortho
 hide empty members
 left to right direction
 
-' =====================================================================
 ' Las referencias a otros objetos NO se listan como atributos:
-' se dibujan como relaciones (asociación / composición) con rol y multiplicidad.
-' =====================================================================
+' se dibujan como relaciones con rol y multiplicidad.
 
-package "comun" {
-  enum EstadoProceso <<enumeration>> {
-    Nuevo
-    EsperandoMemoria
-    Listo
-    Ejecutando
-    Bloqueado
-    Terminado
-  }
+package comun {
   class Error
-  class ErrorDeDominio {
-    +ErrorDeDominio(mensaje: string)
-  }
+  class ErrorDeDominio
   interface "IImprimible<T>" as IImprimible {
     +estado(): T
   }
 }
 
-package "simulador" {
-  interface ISimulador {
-    +registrarProceso(pid, memoriaRequerida, cpuTotal): DatosProceso
-    +programarEntradaSalida(pid, ticksDeCpu, duracion): void
-    +avanzarTick(): void
-    +avanzarTicks(cantidad): void
-  }
-  interface IConsultaSimulador {
-    +getTick(): number
-    +consultarProceso(pid): DatosProceso
-    +consultarProcesos(): DatosProceso[]
-    +consultarProcesoEnCpu(): DatosProceso
-    +consultarColaListos(): DatosProceso[]
-    +consultarProcesosEsperando(): DatosProceso[]
-    +consultarProcesosBloqueados(): DatosProceso[]
-    +consultarProcesosTerminados(): DatosProceso[]
-    +consultarMapaMemoria(): DatosBloque[]
-    +consultarMetricas(): DatosMetricas
-    +consultarHistorialEjecucion(): number[]
-  }
-  interface IConfiguracion {
-    +getMemoriaTotal(): number
-    +getQuantum(): number
-    +getPolitica(): IPoliticaAsignacion
-  }
-  class Simulador {
-    -_tick: number
-    +Simulador(configuracion: IConfiguracion)
-    +getTick(): number
-    -setTick(valor: number): void
-    -getRegistro() / -setRegistro()
-    -getMemoria() / -setMemoria()
-    -getPlanificador() / -setPlanificador()
-    -getBloqueados() / -setBloqueados()
-    -getMetricas() / -setMetricas()
-    -getConfiguracion() / -setConfiguracion()
-    +registrarProceso(pid, memoriaRequerida, cpuTotal): DatosProceso
-    +programarEntradaSalida(pid, ticksDeCpu, duracion): void
-    +avanzarTick(): void
-    +avanzarTicks(cantidad): void
-    -admitirProcesos(): void
-    -actualizarBloqueados(): void
-    -ejecutarCpu(): void
-    -actualizarRelojYMetricas(): void
-    +consultar...(): copias de solo lectura
-    +estado(): DatosSimulador
-  }
-  class ConfiguracionSimulacion {
-    -_memoriaTotal: number
-    -_quantum: number
-    +ConfiguracionSimulacion(memoriaTotal = 1024, quantum = 2, politica = PrimerAjuste)
-    +getMemoriaTotal(): number
-    -setMemoriaTotal(valor): void
-    +getQuantum(): number
-    -setQuantum(valor): void
-    +getPolitica(): IPoliticaAsignacion
-    -setPolitica(valor): void
-    +estado(): DatosConfiguracion
-  }
-}
-
-package "procesos" {
+package procesos {
   interface IProcesoConsultable {
-    +getPid(): number
+    +getPid(): string
     +getMemoriaRequerida(): number
-    +getCpuTotal(): number
     +getCpuRestante(): number
-    +getCpuConsumida(): number
-    +getEstado(): EstadoProceso
-    +getQuantumConsumido(): number
-    +getBloqueoRestante(): number
-  }
-  interface IProcesoAdmisible {
-    +esperarMemoria(): void
-    +admitir(): void
-  }
-  interface IProcesoEjecutable {
-    +despachar(): void
-    +ejecutarUnaUnidad(): void
+    +getNombreEstado(): string
+    +estaPendienteDeMemoria(): boolean
     +haFinalizadoSuCpu(): boolean
     +agotoQuantum(quantum): boolean
-    +renovarQuantum(): void
+    +debeBloquearse(): boolean
+  }
+  interface IProcesoCicloDeVida {
+    +admitir(): void
+    +esperarMemoria(): void
+    +despachar(): void
+    +ejecutarUnaUnidad(): void
+    +renovarQuantum(quantum): void
     +expulsar(): void
     +terminar(): void
   }
   interface IProcesoEntradaSalida {
-    +programarEntradaSalida(evento: IEventoEntradaSalida): void
-    +debeBloquearse(): boolean
+    +programarEntradaSalida(ticksDeCpu, duracion): void
     +bloquear(): void
     +avanzarBloqueo(): boolean
+    +desbloquear(): void
   }
   interface IProcesoPlanificable
-  interface IProcesoGestionable
-  interface IEventoEntradaSalida {
-    +getTicksDeCpu(): number
-    +getDuracion(): number
-    +correspondeDispararEn(cpuConsumida): boolean
-  }
-  interface IRegistroProcesos {
-    +registrar(proceso: IProcesoGestionable): void
-    +buscar(pid): IProcesoGestionable
-    +pendientesDeAdmision(): IProcesoGestionable[]
-  }
-  interface IConsultaProcesos {
-    +existe(pid): boolean
-    +getCantidad(): number
-    +consultarTodos(): DatosProceso[]
-    +consultarPorEstado(estado): DatosProceso[]
-  }
-  interface IGestionBloqueos {
-    +agregar(proceso: IProcesoPlanificable): void
-    +actualizarTemporizadores(): IProcesoPlanificable[]
-  }
-  interface IConsultaBloqueados {
-    +getCantidad(): number
-    +consultarBloqueados(): DatosProceso[]
-  }
 
   class Proceso {
-    -_pid: number
+    -_pid: string
     -_memoriaRequerida: number
     -_cpuTotal: number
     -_cpuRestante: number
-    -_estado: EstadoProceso
     -_quantumConsumido: number
     -_bloqueoRestante: number
-    -_entradaSalidaDisparada: boolean
     +Proceso(pid, memoriaRequerida, cpuTotal)
-    +getPid(): number
-    -setPid(valor): void
-    +getMemoriaRequerida(): number
-    -setMemoriaRequerida(valor): void
-    +getCpuTotal(): number
-    -setCpuTotal(valor): void
-    +getCpuRestante(): number
-    -setCpuRestante(valor): void
-    +getEstado(): EstadoProceso
-    -setEstado(valor): void
-    +getQuantumConsumido(): number
-    -setQuantumConsumido(valor): void
-    +getBloqueoRestante(): number
-    -setBloqueoRestante(valor): void
-    -getEventoEntradaSalida() / -setEventoEntradaSalida()
-    -getEntradaSalidaDisparada() / -setEntradaSalidaDisparada()
-    -cambiarEstado(nuevo, permitidosDesde): void
-    -exigirEstado(esperado, accion): void
+    +getPid() / -setPid(valor)
+    +getCpuRestante() / -setCpuRestante(valor)
+    +getQuantumConsumido() / -setQuantumConsumido(valor)
+    +getBloqueoRestante() / -setBloqueoRestante(valor)
+    -getEstado() / -setEstado(valor)
+    -getEntradaSalida() / -setEntradaSalida(valor)
     +estado(): DatosProceso
   }
-  class EventoEntradaSalida {
+
+  interface IEstadoProceso {
+    +getNombre(): string
+    +estaPendienteDeMemoria(): boolean
+    +admitir(): IEstadoProceso
+    +despachar(): IEstadoProceso
+    +ejecutar(): IEstadoProceso
+    +expulsar(): IEstadoProceso
+    +bloquear(): IEstadoProceso
+    +desbloquear(): IEstadoProceso
+    +terminar(): IEstadoProceso
+  }
+  abstract class EstadoProceso {
+    -_nombre: string
+    #EstadoProceso(nombre)
+    +getNombre(): string
+    -setNombre(valor): void
+    +admitir(): IEstadoProceso
+    +despachar(): IEstadoProceso
+    +...(): transición inválida por defecto
+    #transicionInvalida(accion): never
+  }
+  class Nuevo {
+    +estaPendienteDeMemoria() <<override>>
+    +admitir() <<override>>
+    +esperarMemoria() <<override>>
+  }
+  class EsperandoMemoria {
+    +estaPendienteDeMemoria() <<override>>
+    +admitir() <<override>>
+    +esperarMemoria() <<override>>
+  }
+  class Listo {
+    +despachar() <<override>>
+  }
+  class Ejecutando {
+    +ejecutar() <<override>>
+    +expulsar() <<override>>
+    +bloquear() <<override>>
+    +terminar() <<override>>
+  }
+  class Bloqueado {
+    +avanzarBloqueo() <<override>>
+    +desbloquear() <<override>>
+  }
+  class Terminado {
+    +permiteProgramarEntradaSalida() <<override>>
+  }
+
+  interface IEntradaSalida {
+    +estaProgramada(): boolean
+    +correspondeDispararEn(cpuConsumida): boolean
+    +getDuracion(): number
+  }
+  class EntradaSalida {
     -_ticksDeCpu: number
     -_duracion: number
-    +EventoEntradaSalida(ticksDeCpu, duracion)
-    +getTicksDeCpu(): number
-    -setTicksDeCpu(valor): void
-    +getDuracion(): number
-    -setDuracion(valor): void
-    +correspondeDispararEn(cpuConsumida): boolean
-    +estado(): DatosEventoEntradaSalida
+    +getTicksDeCpu() / -setTicksDeCpu(valor)
+    +getDuracion() / -setDuracion(valor)
   }
-  class RegistroProcesos {
-    -_memoriaTotal: number
-    +RegistroProcesos(memoriaTotal)
-    +getMemoriaTotal(): number
-    -setMemoriaTotal(valor): void
-    -getProcesos() / -setProcesos()
-    +estado(): DatosProceso[]
-  }
-  class ColaBloqueados {
-    +ColaBloqueados()
-    -getProcesos() / -setProcesos()
-    +estado(): DatosProceso[]
-  }
+  class SinEntradaSalida <<objeto nulo>>
 }
 
-package "memoria" {
+package memoria {
   interface IAsignadorMemoria {
     +asignar(pid, tamanio): boolean
   }
@@ -213,120 +133,108 @@ package "memoria" {
   }
   interface IConsultaMemoria {
     +getMemoriaTotal(): number
-    +getMemoriaOcupada(): number
     +getMemoriaLibreTotal(): number
     +getMayorBloqueLibre(): number
-    +getNombrePolitica(): string
-    +tieneMemoriaAsignada(pid): boolean
     +consultarMapa(): DatosBloque[]
+  }
+  class AdministradorMemoria {
+    -_memoriaTotal: number
+    +AdministradorMemoria(memoriaTotal, politica)
+    +getMemoriaTotal() / -setMemoriaTotal(valor)
+    -getPolitica() / -setPolitica(valor)
+    -getBloques() / -setBloques(valor)
+    -ocupar(bloque, pid, tamanio): void
+    -coalescencia(): void
+    -verificarInvariantes(bloques): void
   }
   interface IBloqueConsultable {
     +getInicio(): number
     +getTamanio(): number
-    +getFin(): number
-    +getPidAsignado(): number
+    +getPidAsignado(): string
     +estaLibre(): boolean
   }
   interface IBloqueModificable {
     +asignarA(pid): void
     +liberar(): void
     +recortarA(tamanio): void
-    +absorber(vecinoDerecho: IBloqueConsultable): void
-  }
-  interface IPoliticaAsignacion {
-    +getNombre(): string
-    +elegirBloque(bloques: IBloqueConsultable[], tamanio): IBloqueConsultable
-  }
-  class GestorMemoria {
-    -_memoriaTotal: number
-    +GestorMemoria(memoriaTotal, politica: IPoliticaAsignacion)
-    +getMemoriaTotal(): number
-    -setMemoriaTotal(valor): void
-    -getPolitica() / -setPolitica()
-    -getBloques() / -setBloques(valor): verifica invariantes
-    -bloquesLibres(): BloqueMemoria[]
-    -verificarInvariantes(bloques): void
-    +estado(): DatosMemoria
   }
   class BloqueMemoria {
     -_inicio: number
     -_tamanio: number
-    -_pidAsignado: number | null
-    +BloqueMemoria(inicio, tamanio, pidAsignado = null)
-    +getInicio(): number
-    -setInicio(valor): void
-    +getTamanio(): number
-    -setTamanio(valor): void
-    +getPidAsignado(): number
-    -setPidAsignado(valor): void
-    +estado(): DatosBloque
+    -_pidAsignado: string | null
+    +getInicio() / -setInicio(valor)
+    +getTamanio() / -setTamanio(valor)
+    +getPidAsignado() / -setPidAsignado(valor)
+  }
+  interface IPoliticaAsignacion {
+    +getNombre(): string
+    +elegir(bloques, tamanio): IBloqueConsultable[]
   }
   abstract class PoliticaAsignacion {
     -_nombre: string
-    #PoliticaAsignacion(nombre)
-    +getNombre(): string
-    -setNombre(valor): void
-    +elegirBloque(bloques, tamanio): IBloqueConsultable
-    #{abstract} seleccionar(candidatos): IBloqueConsultable
+    +getNombre() / -setNombre(valor)
+    +elegir(bloques, tamanio): IBloqueConsultable[]
+    #{abstract} ordenar(candidatos): IBloqueConsultable[]
   }
   class PrimerAjuste {
-    #seleccionar(candidatos): IBloqueConsultable
+    #ordenar(candidatos) <<override>>
   }
   class MejorAjuste {
-    #seleccionar(candidatos): IBloqueConsultable
+    #ordenar(candidatos) <<override>>
   }
   class PeorAjuste {
-    #seleccionar(candidatos): IBloqueConsultable
+    #ordenar(candidatos) <<override>>
   }
 }
 
-package "planificacion" {
+package planificacion {
   interface IPlanificador {
-    +encolar(proceso: IProcesoPlanificable): void
+    +encolar(proceso): void
+    +actualizarBloqueados(): void
     +ejecutarTick(): ResultadoTick
   }
   interface IConsultaPlanificador {
-    +getQuantum(): number
-    +estaCpuOcupada(): boolean
     +consultarProcesoEnCpu(): DatosProceso
     +consultarColaListos(): DatosProceso[]
-    +consultarHistorialEjecucion(): number[]
+    +consultarHistorialEjecucion(): string[]
   }
-  interface ResultadoTick <<datos>> {
-    +pidEjecutado: number | null
-    +procesoTerminado: IProcesoPlanificable | null
-    +procesoBloqueado: IProcesoPlanificable | null
-    +huboCambioDeContexto: boolean
+  interface IControlCpu {
+    +getQuantum(): number
+    +hayProcesosListos(): boolean
+    +liberarCpu(): void
+    +encolar(proceso): void
+    +agregarBloqueado(proceso): void
   }
   class PlanificadorRoundRobin {
     -_quantum: number
-    -_historialEjecucion: number[]
-    +PlanificadorRoundRobin(quantum)
-    +getQuantum(): number
-    -setQuantum(valor): void
-    -getColaListos() / -setColaListos()
-    -getProcesoEnCpu() / -setProcesoEnCpu()
-    -getHistorialEjecucion() / -setHistorialEjecucion()
-    -despacharSiguiente(): void
-    -resolverFinDeUnidad(proceso): ResultadoTick
-    +estado(): DatosPlanificador
+    -_historialEjecucion: string[]
+    +getQuantum() / -setQuantum(valor)
+    -getColaListos() / -setColaListos(valor)
+    -getCpu() / -setCpu(valor)
+    -getBloqueados() / -setBloqueados(valor)
+    -getReglas() / -setReglas(valor)
+    -despacharSiLaCpuEstaLibre(): void
+    -ejecutar(proceso): ResultadoTick
   }
+  interface IReglaCpu {
+    +aplica(proceso, cpu): boolean
+    +aplicar(proceso, cpu): ResultadoTick
+  }
+  class ReglaFinalizacion
+  class ReglaEntradaSalida
+  class ReglaQuantumAgotado
+  class ReglaContinuar
 }
 
-package "metricas" {
+package metricas {
   interface IRegistroMetricas {
-    +registrarUsoDeCpu(ocupada): void
-    +registrarCambioDeContexto(): void
-    +recalcular(memoria: IConsultaMemoria, ticks): void
+    +registrarTick(resultado): void
+    +recalcular(memoria, ticks): void
   }
   interface IConsultaMetricas {
-    +getOcupacionMemoria(): number
     +getUtilizacionCpu(): number
     +getCambiosDeContexto(): number
-    +getMemoriaLibreTotal(): number
-    +getMayorBloqueLibre(): number
     +getFragmentacionExterna(): number
-    +getTicksConCpuOcupada(): number
   }
   class Metricas {
     -_ticksConCpuOcupada: number
@@ -336,82 +244,98 @@ package "metricas" {
     -_memoriaLibreTotal: number
     -_mayorBloqueLibre: number
     -_fragmentacionExterna: number
-    +get...(): number
-    -set...(valor): void  (validan)
-    +estado(): DatosMetricas
+    +get...() / -set...(valor)
   }
 }
 
-' ------------------------- Herencia -------------------------
+interface ISimulador {
+  +registrarProceso(pid, memoriaRequerida, cpuTotal): DatosProceso
+  +programarEntradaSalida(pid, ticksDeCpu, duracion): void
+  +avanzarTick(): void
+  +avanzarTicks(cantidad): void
+}
+interface IConsultaSimulador {
+  +getTick(): number
+  +consultarProceso(pid): DatosProceso
+  +consultarColaListos(): DatosProceso[]
+  +consultarMapaMemoria(): DatosBloque[]
+  +consultarMetricas(): DatosMetricas
+  +...
+}
+class Simulador {
+  -_tick: number
+  +Simulador(memoriaTotal = 1024, quantum = 2, politica = PrimerAjuste)
+  +getTick() / -setTick(valor)
+  -getProcesos() / -setProcesos(valor)
+  -getMemoria() / -setMemoria(valor)
+  -getPlanificador() / -setPlanificador(valor)
+  -getMetricas() / -setMetricas(valor)
+  -admitirProcesos(): void
+  +estado(): DatosSimulador
+}
+
+' ---------------- Herencia ("es un") ----------------
 ErrorDeDominio --|> Error
+Nuevo --|> EstadoProceso
+EsperandoMemoria --|> EstadoProceso
+Listo --|> EstadoProceso
+Ejecutando --|> EstadoProceso
+Bloqueado --|> EstadoProceso
+Terminado --|> EstadoProceso
 PrimerAjuste --|> PoliticaAsignacion
 MejorAjuste --|> PoliticaAsignacion
 PeorAjuste --|> PoliticaAsignacion
 IProcesoPlanificable --|> IProcesoConsultable
-IProcesoPlanificable --|> IProcesoEjecutable
+IProcesoPlanificable --|> IProcesoCicloDeVida
 IProcesoPlanificable --|> IProcesoEntradaSalida
 IProcesoPlanificable --|> IImprimible
-IProcesoGestionable --|> IProcesoPlanificable
-IProcesoGestionable --|> IProcesoAdmisible
 
-' ------------------------- Realización -------------------------
-Simulador ..|> ISimulador
-Simulador ..|> IConsultaSimulador
-Simulador ..|> IImprimible
-ConfiguracionSimulacion ..|> IConfiguracion
-ConfiguracionSimulacion ..|> IImprimible
+' ---------------- Realización ----------------
 Proceso ..|> IProcesoConsultable
-Proceso ..|> IProcesoAdmisible
-Proceso ..|> IProcesoEjecutable
+Proceso ..|> IProcesoCicloDeVida
 Proceso ..|> IProcesoEntradaSalida
 Proceso ..|> IImprimible
-EventoEntradaSalida ..|> IEventoEntradaSalida
-EventoEntradaSalida ..|> IImprimible
-RegistroProcesos ..|> IRegistroProcesos
-RegistroProcesos ..|> IConsultaProcesos
-RegistroProcesos ..|> IImprimible
-ColaBloqueados ..|> IGestionBloqueos
-ColaBloqueados ..|> IConsultaBloqueados
-ColaBloqueados ..|> IImprimible
-GestorMemoria ..|> IAsignadorMemoria
-GestorMemoria ..|> ILiberadorMemoria
-GestorMemoria ..|> IConsultaMemoria
-GestorMemoria ..|> IImprimible
+EstadoProceso ..|> IEstadoProceso
+EntradaSalida ..|> IEntradaSalida
+EntradaSalida ..|> IImprimible
+SinEntradaSalida ..|> IEntradaSalida
+SinEntradaSalida ..|> IImprimible
+AdministradorMemoria ..|> IAsignadorMemoria
+AdministradorMemoria ..|> ILiberadorMemoria
+AdministradorMemoria ..|> IConsultaMemoria
+AdministradorMemoria ..|> IImprimible
 BloqueMemoria ..|> IBloqueConsultable
 BloqueMemoria ..|> IBloqueModificable
 BloqueMemoria ..|> IImprimible
 PoliticaAsignacion ..|> IPoliticaAsignacion
 PlanificadorRoundRobin ..|> IPlanificador
 PlanificadorRoundRobin ..|> IConsultaPlanificador
+PlanificadorRoundRobin ..|> IControlCpu
 PlanificadorRoundRobin ..|> IImprimible
+ReglaFinalizacion ..|> IReglaCpu
+ReglaEntradaSalida ..|> IReglaCpu
+ReglaQuantumAgotado ..|> IReglaCpu
+ReglaContinuar ..|> IReglaCpu
 Metricas ..|> IRegistroMetricas
 Metricas ..|> IConsultaMetricas
 Metricas ..|> IImprimible
+Simulador ..|> ISimulador
+Simulador ..|> IConsultaSimulador
+Simulador ..|> IImprimible
 
-' ------------------------- Composición / asociación -------------------------
-Simulador "1" *-- "1" RegistroProcesos : -_registro
-Simulador "1" *-- "1" GestorMemoria : -_memoria
+' ---------------- Composición y asociaciones ----------------
+Simulador "1" *-- "0..*" IProcesoPlanificable : -_procesos {orden de registro}
+Simulador "1" *-- "1" AdministradorMemoria : -_memoria
 Simulador "1" *-- "1" PlanificadorRoundRobin : -_planificador
-Simulador "1" *-- "1" ColaBloqueados : -_bloqueados
 Simulador "1" *-- "1" Metricas : -_metricas
-Simulador "1" o-- "1" ConfiguracionSimulacion : -_configuracion
-ConfiguracionSimulacion "1" --> "1" IPoliticaAsignacion : -_politica
-GestorMemoria "1" --> "1" IPoliticaAsignacion : -_politica
-GestorMemoria "1" *-- "1..*" BloqueMemoria : -_bloques {ordenados por inicio}
-RegistroProcesos "1" *-- "0..*" IProcesoGestionable : -_procesos {orden de registro}
+Proceso "1" --> "1" IEstadoProceso : -_estado
+Proceso "1" --> "1" IEntradaSalida : -_entradaSalida
+AdministradorMemoria "1" *-- "1..*" BloqueMemoria : -_bloques {ordenados por inicio}
+AdministradorMemoria "1" --> "1" IPoliticaAsignacion : -_politica
 PlanificadorRoundRobin "1" --> "0..*" IProcesoPlanificable : -_colaListos {FIFO}
-PlanificadorRoundRobin "1" --> "0..1" IProcesoPlanificable : -_procesoEnCpu
-ColaBloqueados "1" --> "0..*" IProcesoPlanificable : -_procesos
-Proceso "1" --> "0..1" IEventoEntradaSalida : -_eventoEntradaSalida
-Proceso ..> EstadoProceso
-PlanificadorRoundRobin ..> ResultadoTick : <<crea>>
+PlanificadorRoundRobin "1" --> "0..1" IProcesoPlanificable : -_cpu
+PlanificadorRoundRobin "1" --> "0..*" IProcesoPlanificable : -_bloqueados
+PlanificadorRoundRobin "1" *-- "4" IReglaCpu : -_reglas {ordenadas por prioridad}
 Metricas ..> IConsultaMemoria : <<usa>>
-Simulador ..> Proceso : <<crea>>
-Simulador ..> EventoEntradaSalida : <<crea>>
-
-note bottom of Simulador
-  Los atributos de las partes están tipados con
-  interfaces (IAsignadorMemoria & ILiberadorMemoria & ...),
-  no con las clases concretas (inversión de dependencias).
-end note
+IReglaCpu ..> IControlCpu : <<usa>>
 @enduml
